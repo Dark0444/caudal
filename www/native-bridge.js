@@ -308,6 +308,14 @@
         App.addListener('appStateChange', function (estado) {
           if (estado && estado.isActive) {
             if (typeof window.runAlertEngine === 'function') { try { window.runAlertEngine(); } catch (e) { } }
+            // Al volver a la app recogemos lo que el lector haya capturado mientras
+            // estuvo cerrada, y dejamos el resumen de la noche al día.
+            if (typeof window.sincronizarPendientes === 'function') {
+              try { window.sincronizarPendientes(false); } catch (e) { }
+            }
+            if (typeof window.actualizarResumenNativo === 'function') {
+              try { window.actualizarResumenNativo(); } catch (e) { }
+            }
             programarAvisos();
           }
         });

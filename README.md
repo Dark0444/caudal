@@ -42,8 +42,32 @@ el sistema operativo, no con el navegador:
 - Se reprograman solas cada vez que agregas, editas, pagas o borras algo.
 - Suenan aunque la app esté cerrada y el teléfono bloqueado.
 
-Las alertas de presupuesto, tarjeta y comparativas siguen saliendo mientras usas la
-app, igual que antes.
+Además, código nativo arma en el momento estos avisos, así que el texto siempre
+refleja el dato del instante en que suena:
+
+- **21:00** — lo gastado hoy y en cuántos movimientos, o la felicitación si no gastaste.
+- **Domingo 19:00** — la semana contra la anterior.
+
+## Lectura de cobros del banco
+
+Con el permiso de *acceso a notificaciones* de Android, Caudal lee los avisos de
+Promerica y de Google Wallet y los convierte en cobros. No se registran solos: caen
+en la bandeja de **Cobros detectados**, y los apruebas desde la propia notificación
+o desde la app, donde puedes corregir monto, cuenta y categoría antes.
+
+Formatos que entiende hoy sin adivinar:
+
+```
+Consumo PROMERICA **8240 Monto 156.20 QUETZALES Comercio ...  → gasto
+Pago recibido Q739.98 en tu tarjeta ***8240 ...               → abono a la tarjeta
+```
+
+El número de autorización sirve de huella, así que si el banco y la billetera
+avisan del mismo pago, solo se registra una vez. Cada cuenta lleva sus últimos
+cuatro dígitos para saber a cuál cargar el cobro, y la app aprende qué categoría
+corresponde a cada comercio la primera vez que se la indicas.
+
+Solo se leen las apps de la lista blanca. De las demás no se guarda contenido.
 
 ## Compilar
 

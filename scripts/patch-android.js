@@ -12,6 +12,8 @@
      3. Número de versión incremental, para que Android reconozca la
         actualización.
      4. Copia el ícono monocromo de la barra de estado.
+     5. Instala el componente nativo propio (lector de notificaciones del banco,
+        resúmenes y cola de cobros) y lo registra en MainActivity.
 */
 const fs = require('fs');
 const path = require('path');
@@ -107,5 +109,84 @@ if (fs.existsSync(origenRes)) {
   }
 }
 hechos.push(`${iconos} ícono(s) de notificación copiados`);
+
+/* ---------- 5. Componente nativo propio ---------- */
+const paquete = 'com.caudal.finanzas';
+const destinoJava = path.join(android, 'app/src/main/java', ...paquete.split('.'));
+const origenJava = path.join(raiz, 'android-plugin');
+let clases = 0;
+if (fs.existsSync(origenJava)) {
+  fs.mkdirSync(destinoJava, { recursive: true });
+  for (const archivo of fs.readdirSync(origenJava)) {
+    if (!archivo.endsWith('.java')) continue;
+    fs.copyFileSync(path.join(origenJava, archivo), path.join(destinoJava, archivo));
+    clases++;
+  }
+}
+hechos.push(`${clases} clase(s) nativas instaladas`);
+
+/* El servicio lector y los receptores viven en el manifiesto, dentro de <application> */
+manifest = leer(manifestPath);
+if (!manifest.includes('LectorNotificaciones')) {
+  const bloque = `
+        <service
+            android:name=".LectorNotificaciones"
+            android:label="Caudal"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver android:name=".AccionReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="com.caudal.finanzas.CONFIRMAR" />
+                <action android:name="com.caudal.finanzas.DESCARTAR" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".ResumenReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="com.caudal.finanzas.RESUMEN_DIARIO" />
+                <action android:name="com.caudal.finanzas.RESUMEN_SEMANAL" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".ArranqueReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+`;
+  manifest = manifest.replace('</application>', bloque + '    </application>');
+  escribir(manifestPath, manifest);
+  hechos.push('servicio y receptores declarados');
+}
+
+/* Capacitor no descubre solo un plugin que vive en la propia app: hay que
+   registrarlo en MainActivity antes de que arranque el puente. */
+const mainPath = path.join(destinoJava, 'MainActivity.java');
+if (fs.existsSync(mainPath)) {
+  let main = leer(mainPath);
+  if (!main.includes('CaudalPlugin.class')) {
+    if (/public\s+class\s+MainActivity[^{]*\{/.test(main)) {
+      main = main.replace(/(public\s+class\s+MainActivity[^{]*\{)/,
+        `$1
+    @Override
+    public void onCreate(android.os.Bundle savedInstanceState) {
+        registerPlugin(CaudalPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+`);
+      escribir(mainPath, main);
+      hechos.push('plugin registrado en MainActivity');
+    } else {
+      console.log('::warning title=MainActivity::No se pudo registrar CaudalPlugin automáticamente.');
+    }
+  }
+} else {
+  console.log('::warning title=MainActivity::No se encontró MainActivity.java en ' + destinoJava);
+}
 
 console.log('patch-android: ' + hechos.join(' · '));

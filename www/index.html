@@ -497,6 +497,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
       <button class="chip" id="btnResumen" style="flex:1;text-align:center;padding:11px 8px">📊 Resumen general</button>
       <button class="chip" id="btnReporte" style="flex:1;text-align:center;padding:11px 8px">🗂️ Reportes</button>
     </div>
+    <button class="chip hide" id="chipPendientes" style="width:100%;text-align:center;padding:11px 8px;margin-bottom:10px;border-color:var(--gold);color:var(--gold)"></button>
 
     <!-- ================= TABLERO ================= -->
     <section class="view on" id="view-tablero">
@@ -753,6 +754,9 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     </label>
     <label class="f"><span>Ícono</span><div class="presets" id="bancoIconos"></div></label>
     <label class="f"><span>Color</span><div class="swatches" id="bancoColores"></div></label>
+    <label class="f" style="margin-bottom:4px"><span>Últimos 4 dígitos de la tarjeta</span>
+      <input class="inp num" id="bancoLast4" type="text" inputmode="numeric" maxlength="4" placeholder="Ej. 8240"></label>
+    <div class="muted" style="margin-bottom:14px;font-size:11.5px">Con esto Caudal sabe a qué cuenta mandar los cobros que lee de las notificaciones de tu banco. Déjalo vacío si esta cuenta no tiene tarjeta.</div>
     <label class="f" id="wrapSaldo"><span>Saldo inicial (Q)</span><input class="inp num" id="bancoSaldo" type="number" step="0.01" value="0" inputmode="decimal"></label>
     <div class="grid2 hide" id="wrapCredito">
       <label class="f"><span>Deuda actual (Q)</span><input class="inp num" id="bancoDeuda" type="number" step="0.01" value="0" inputmode="decimal"></label>
@@ -907,6 +911,38 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   <div id="repBody" style="margin-top:14px"></div>
 </div>
 
+<!-- Cobros detectados de las notificaciones del banco -->
+<div class="sheet" id="sheetPendientes">
+  <div class="grab"></div>
+  <h3>Cobros detectados</h3>
+  <p class="sub" id="pendSub">Lo que Caudal leyó de las notificaciones de tu banco y de la billetera.</p>
+  <div id="pendAcceso" class="hide" style="margin-bottom:14px"></div>
+  <div id="pendLista"></div>
+</div>
+
+<!-- Editar un cobro detectado antes de registrarlo -->
+<div class="sheet" id="sheetPendEdit">
+  <div class="grab"></div>
+  <h3>Revisar el cobro</h3>
+  <p class="sub" id="pendEditSub"></p>
+  <form id="pendEditForm">
+    <input type="hidden" id="pendEditId">
+    <label class="f"><span>Monto (Q)</span><input class="inp num" id="pendMonto" type="number" step="0.01" min="0" required inputmode="decimal"></label>
+    <label class="f"><span>Descripción</span><input class="inp" id="pendDesc" type="text"></label>
+    <label class="f" id="wrapPendCat"><span>Categoría</span><select class="inp" id="pendCat"></select></label>
+    <label class="f"><span>Cuenta</span><select class="inp" id="pendBanco"></select></label>
+    <label class="f hide" id="wrapPendTarjeta"><span>Tarjeta a la que se abona</span><select class="inp" id="pendTarjeta"></select></label>
+    <label class="f"><span>Fecha</span><input class="inp" id="pendFecha" type="date" required></label>
+    <label class="f" style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" id="pendRecordar" checked style="width:20px;height:20px;accent-color:var(--violet)">
+      <span style="margin:0">Recordar la categoría para este comercio</span>
+    </label>
+    <button class="btn" type="submit">Registrar movimiento</button>
+    <button class="btn danger" type="button" id="pendDescartar" style="margin-top:9px">Descartar</button>
+  </form>
+  <div class="muted" id="pendCrudo" style="margin-top:14px;font-size:11px;line-height:1.5"></div>
+</div>
+
 <!-- Confirmación (reemplaza a confirm(), bloqueado dentro del marco) -->
 <div class="sheet" id="sheetConfirm">
   <div class="grab"></div>
@@ -952,6 +988,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   <h3>Centro de alertas</h3>
   <p class="sub" id="alertSub">Presupuestos, tarjeta, obligaciones y metas.</p>
   <div id="alertList"></div>
+  <button class="btn ghost" type="button" id="btnVerPendientes" style="margin-top:12px">Cobros detectados del banco</button>
   <div id="notifEstado" class="muted" style="margin-top:14px"></div>
   <button class="btn ghost" type="button" id="btnNotifPerm" style="margin-top:8px">Permitir notificaciones del sistema</button>
   <button class="btn ghost" type="button" id="btnNotifTest" style="margin-top:8px">Enviar notificación de prueba</button>
@@ -1205,6 +1242,7 @@ function postAction(tipo,payload){
   const r=fn(payload);
   if(r && r.id && !r.auto && (tipo==='addTx'||tipo==='pagarOb')) aplicarAutomatizacionesMeta(r);
   saveDB(); getAllDataLocal(); renderAll(); runAlertEngine(); reprogramarNativo();
+  actualizarResumenNativo();
   return r;
 }
 /* Automatizaciones de planes de ahorro: redondeo de gastos y aparte automático de ingresos.
@@ -1556,6 +1594,7 @@ function openBancoModal(id){
   $('bancoNombre').value=b?b.nombre:'';
   $('bancoTipo').value=b?b.tipo:'monetaria';
   $('bancoSaldo').value=b?num(b.saldoInicial):0;
+  $('bancoLast4').value=b?(b.last4||''):'';
   $('bancoDeuda').value=b?num(b.deudaInicial):0;
   $('bancoLimite').value=b?num(b.limite):0;
   renderIconPicker('bancoIconos',ICONOS_BANCO,b?b.icono:'🏦');
@@ -1571,6 +1610,7 @@ function guardarBanco(e){
     nombre:$('bancoNombre').value.trim(), tipo:$('bancoTipo').value,
     icono:pick('#bancoIconos .on','i','🏦'),
     color:pick('#bancoColores .on','c',COLORES[0]),
+    last4:String($('bancoLast4').value||'').replace(/\D/g,'').slice(0,4),
     saldoInicial:parseMonto($('bancoSaldo').value),
     deudaInicial:parseMonto($('bancoDeuda').value),
     limite:parseMonto($('bancoLimite').value)
@@ -3454,6 +3494,8 @@ function pushNotify(titulo,cuerpo,clave,icono,cat){
   }else avisoEnApp(titulo,cuerpo,icono);
 }
 window.runAlertEngine = runAlertEngine;
+window.sincronizarPendientes = sincronizarPendientes;
+window.actualizarResumenNativo = actualizarResumenNativo;
 function runAlertEngine(){
   const m=mesActualSistema();
   Engine.budgetsFor(m).forEach(b=>{
@@ -4019,6 +4061,14 @@ function wire(){
 
   // Admin
   $('btnResumen').onclick=abrirResumen;
+  $('chipPendientes').onclick=abrirPendientes;
+  $('btnVerPendientes').onclick=()=>{ closeSheet('sheetAlerts'); setTimeout(abrirPendientes,240); };
+  $('pendLista').onclick=e=>{
+    const ed=e.target.closest('[data-pend-edit]'); if(ed) return abrirPendEdit(ed.dataset.pendEdit);
+    const ok=e.target.closest('[data-pend-ok]');   if(ok) return registrarPendienteDirecto(ok.dataset.pendOk);
+  };
+  $('pendEditForm').onsubmit=guardarPendEdit;
+  $('pendDescartar').onclick=()=>descartarPendiente($('pendEditId').value);
   $('btnReporte').onclick=abrirReportes;
   $('btnGenerarReporte').onclick=generarReporte;
   $('repBody').onclick=e=>{ const b=e.target.closest('[data-rep]'); if(b){ repVer=b.dataset.rep; renderReportes(); hap(); } };
@@ -4155,6 +4205,272 @@ function aplicarAccionDeAtajo(){
   }catch(e){}
 }
 
+/* ============================================================
+   18.b  Cobros detectados de las notificaciones del banco
+
+   El lado nativo lee las notificaciones de Promerica y de la billetera, las
+   convierte en cobros y los deja en una cola. Aquí la app los recoge, te deja
+   revisarlos y, cuando los apruebas, los registra como movimientos de verdad,
+   pasando por postAction igual que si los hubieras escrito a mano: así siguen
+   valiendo los saldos, los límites y las automatizaciones.
+   ============================================================ */
+function nativoCaudal(){
+  try{ return window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.CaudalNativo || null; }
+  catch(e){ return null; }
+}
+let colaPend=[], accesoNotif=false;
+
+function bancoPorLast4(l4){
+  if(!l4) return null;
+  return DB.bancos.find(b=>String(b.last4||'').replace(/\D/g,'')===String(l4).replace(/\D/g,'')) || null;
+}
+/* Memoria de comercio → categoría: la primera vez la eliges, después entra sola. */
+function mapaComercios(){
+  DB.config.comercios = DB.config.comercios || {};
+  return DB.config.comercios;
+}
+function claveComercio(c){ return String(c||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().slice(0,40); }
+function categoriaDe(comercio){
+  const m=mapaComercios(), k=claveComercio(comercio);
+  if(!k) return '';
+  if(m[k]) return m[k];
+  for(const kk in m){ if(kk && (k.startsWith(kk)||kk.startsWith(k))) return m[kk]; }
+  return '';
+}
+function aprenderComercio(comercio,categoria){
+  const k=claveComercio(comercio);
+  if(!k||!categoria) return;
+  mapaComercios()[k]=categoria;
+}
+
+async function sincronizarPendientes(silencioso){
+  const N=nativoCaudal();
+  if(!N){ colaPend=[]; actualizarChipPendientes(); return; }
+  let r;
+  try{ r=await N.obtenerPendientes(); }catch(e){ return; }
+  accesoNotif=!!(r&&r.acceso);
+  const cola=(r&&r.cola)||[];
+
+  /* Los que confirmaste desde la notificación entran solos al libro mayor. */
+  const yaProcesados=[];
+  let entraron=0;
+  cola.forEach(p=>{
+    if(p.estado==='confirmado'){ if(registrarPendiente(p)) entraron++; yaProcesados.push(p.id); }
+    else if(p.estado==='descartado'){ yaProcesados.push(p.id); }
+  });
+  if(yaProcesados.length){
+    try{ await N.marcarProcesados({ids:yaProcesados}); }catch(e){}
+  }
+  colaPend=cola.filter(p=>p.estado==='pendiente');
+  actualizarChipPendientes();
+  if(entraron && !silencioso){
+    showToast(entraron===1?'1 cobro confirmado se registró':entraron+' cobros confirmados se registraron');
+  }
+  if(colaPend.length && !silencioso){
+    avisoEnApp('Cobros por revisar',
+      colaPend.length===1?'Hay 1 cobro detectado esperando tu visto bueno.'
+                         :'Hay '+colaPend.length+' cobros detectados esperando tu visto bueno.','🧾');
+  }
+}
+
+/* Convierte un cobro detectado en movimiento. Devuelve true si lo registró. */
+function registrarPendiente(p, extra){
+  extra=extra||{};
+  const monto=num(extra.monto!=null?extra.monto:p.monto);
+  if(monto<=0) return false;
+  const fecha=extra.fecha||p.fecha||hoy();
+
+  if(p.tipo==='pago'){
+    const tarjeta = extra.tarjetaId || (bancoPorLast4(p.tarjeta)||{}).id
+                 || (DB.bancos.find(b=>b.tipo==='credito')||{}).id || null;
+    const origen = extra.bancoId || null;
+    if(!origen) return false;                 // un pago necesita saber de dónde salió
+    postAction('addTx',{tipo:'tarjeta',monto,fecha,bancoId:origen,tarjetaId:tarjeta,
+      categoria:'Tarjeta',descripcion:extra.descripcion||'Pago a tarjeta',origenAuto:p.autorizacion||''});
+    return true;
+  }
+
+  const banco = extra.bancoId || (bancoPorLast4(p.tarjeta)||{}).id || null;
+  if(!banco) return false;                    // sin cuenta no se puede cuadrar el saldo
+  const cat = extra.categoria!=null ? extra.categoria : (categoriaDe(p.comercio)||'Sin categoría');
+  postAction('addTx',{tipo:'gasto',monto,fecha,bancoId:banco,categoria:cat,
+    descripcion:extra.descripcion||p.comercio||'Compra',origenAuto:p.autorizacion||''});
+  return true;
+}
+
+function actualizarChipPendientes(){
+  const b=$('chipPendientes');
+  if(!b) return;
+  b.classList.toggle('hide',!colaPend.length);
+  b.textContent='🧾 '+colaPend.length+(colaPend.length===1?' cobro por revisar':' cobros por revisar');
+}
+
+function abrirPendientes(){ renderPendientes(); openSheet('sheetPendientes'); }
+
+function renderPendientes(){
+  const N=nativoCaudal(), cont=$('pendLista'), acc=$('pendAcceso');
+  if(!N){
+    acc.classList.add('hide');
+    cont.innerHTML='<div class="empty"><b>Solo en la app instalada</b>La lectura de notificaciones del banco necesita el APK de Android; en el navegador no existe.</div>';
+    return;
+  }
+  if(!accesoNotif){
+    acc.classList.remove('hide');
+    acc.innerHTML=`<div class="card tight" style="border-color:rgba(255,196,107,.4);background:rgba(255,196,107,.08)">
+      <div class="strat-intro">Falta darle a Caudal el permiso de <b>acceso a notificaciones</b>. Sin eso no puede leer los avisos de Promerica ni de la billetera.
+      Android no deja que una app se lo conceda sola: hay que activarlo a mano una sola vez.</div>
+      <button class="btn" type="button" id="btnAbrirAcceso" style="margin-top:12px">Abrir los ajustes de Android</button>
+      <div class="muted" style="margin-top:8px;font-size:11px">Busca <b>Caudal</b> en la lista y actívalo. Solo se leen las notificaciones de tu banco y tu billetera; las demás ni se guardan.</div>
+    </div>`;
+    const bt=$('btnAbrirAcceso');
+    if(bt) bt.onclick=()=>{ N.abrirAjustesAcceso().catch(()=>showToast('Ábrelo en Ajustes › Notificaciones › Acceso a notificaciones')); };
+  }else acc.classList.add('hide');
+
+  $('pendSub').textContent = colaPend.length
+    ? colaPend.length+(colaPend.length===1?' cobro esperando':' cobros esperando')+' tu visto bueno.'
+    : 'Aquí caen las compras que Caudal lee de las notificaciones de tu banco.';
+
+  if(!colaPend.length){
+    cont.innerHTML='<div class="empty"><b>Nada pendiente</b>'
+      +(accesoNotif?'Cuando pagues con tu tarjeta, el cobro aparecerá aquí para que lo apruebes.'
+                   :'Activa el permiso de arriba para empezar a detectarlos.')+'</div>';
+    return;
+  }
+
+  cont.innerHTML=colaPend.map(p=>{
+    const esPago=p.tipo==='pago';
+    const banco=bancoPorLast4(p.tarjeta);
+    const cat=categoriaDe(p.comercio);
+    const dudoso=p.confianza==='revisar';
+    const col=esPago?'#2DD4BF':'#FF6B81';
+    const detalle=[
+      p.tarjeta?('•••• '+p.tarjeta):null,
+      banco?esc(banco.nombre):'<span style="color:#FFC46B">cuenta sin identificar</span>',
+      fechaLarga(p.fecha)+(p.hora?' · '+p.hora:'')
+    ].filter(Boolean).join(' · ');
+    return `<div class="card tight" style="margin-bottom:10px;border-color:${col}44">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div class="ic" style="background:${col}22;color:${col};width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:17px;flex:none">${esPago?'✔️':'🛒'}</div>
+        <div style="flex:1;min-width:0">
+          <b style="font-size:14.5px;display:block">${esc(p.comercio||(esPago?'Pago a tarjeta':'Compra'))}</b>
+          <span class="muted" style="font-size:11.5px">${detalle}</span>
+          ${cat&&!esPago?`<span class="muted" style="font-size:11.5px;display:block">Entrará en ${esc(cat)}</span>`:''}
+          ${dudoso?'<span style="font-size:11.5px;color:#FFC46B;display:block">Monto poco claro: revísalo antes de aprobar</span>':''}
+        </div>
+        <b class="num" style="color:${col};font-size:16px">${Engine.format(p.monto)}</b>
+      </div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn ghost" type="button" data-pend-edit="${p.id}" style="margin-top:0">Revisar</button>
+        <button class="btn" type="button" data-pend-ok="${p.id}" style="margin-top:0">Registrar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirPendEdit(id){
+  const p=colaPend.find(x=>x.id===id); if(!p) return;
+  const esPago=p.tipo==='pago';
+  $('pendEditId').value=id;
+  $('pendEditSub').textContent=esPago?'Pago a tu tarjeta leído del aviso del banco.':'Compra leída del aviso del banco.';
+  $('pendMonto').value=num(p.monto).toFixed(2);
+  $('pendDesc').value=p.comercio||(esPago?'Pago a tarjeta':'Compra');
+  $('pendFecha').value=p.fecha||hoy();
+
+  poblarSelectsBanco();
+  $('pendCat').innerHTML='<option value="">Sin categoría</option>'+
+    DB.categorias.map(c=>`<option value="${esc(c.nombre)}">${c.icono} ${esc(c.nombre)}</option>`).join('');
+  const opts=(arr,vacio)=>(vacio?`<option value="">${vacio}</option>`:'')+arr.map(b=>`<option value="${b.id}">${esc(b.nombre)}</option>`).join('');
+  $('pendBanco').innerHTML=opts(esPago?DB.bancos.filter(b=>b.tipo!=='credito'):DB.bancos,'Elige una cuenta');
+  $('pendTarjeta').innerHTML=opts(DB.bancos.filter(b=>b.tipo==='credito'),'');
+
+  $('wrapPendCat').classList.toggle('hide',esPago);
+  $('wrapPendTarjeta').classList.toggle('hide',!esPago);
+
+  const banco=bancoPorLast4(p.tarjeta);
+  if(esPago){
+    const tj=bancoPorLast4(p.tarjeta)||DB.bancos.find(b=>b.tipo==='credito');
+    if(tj) $('pendTarjeta').value=tj.id;
+  }else if(banco) $('pendBanco').value=banco.id;
+  const cat=categoriaDe(p.comercio);
+  if(cat) $('pendCat').value=cat;
+
+  $('pendCrudo').textContent='Texto original: '+(p.textoCrudo||'');
+  openSheet('sheetPendEdit');
+}
+
+function guardarPendEdit(e){
+  e.preventDefault();
+  const id=$('pendEditId').value;
+  const p=colaPend.find(x=>x.id===id); if(!p) return;
+  const monto=parseMonto($('pendMonto').value);
+  if(monto<=0){ showToast('El monto debe ser mayor a cero'); return; }
+  const esPago=p.tipo==='pago';
+  const banco=$('pendBanco').value;
+  if(!banco){ showToast(esPago?'Elige de qué cuenta salió el pago':'Elige a qué cuenta cargarlo'); return; }
+
+  const cat=esPago?null:($('pendCat').value||'Sin categoría');
+  if(!esPago && $('pendRecordar').checked) aprenderComercio(p.comercio,cat);
+
+  const ok=registrarPendiente(p,{monto,fecha:$('pendFecha').value,bancoId:banco,
+    tarjetaId:$('pendTarjeta').value||null,categoria:cat,descripcion:$('pendDesc').value.trim()});
+  if(!ok){ showToast('No se pudo registrar; revisa la cuenta'); return; }
+
+  quitarPendiente(id);
+  closeSheet('sheetPendEdit');
+  showToast('Movimiento registrado');
+}
+
+function registrarPendienteDirecto(id){
+  const p=colaPend.find(x=>x.id===id); if(!p) return;
+  if(!registrarPendiente(p)){ abrirPendEdit(id); showToast('Falta decidir la cuenta'); return; }
+  quitarPendiente(id);
+  showToast('Registrado · '+Engine.format(p.monto));
+}
+
+async function quitarPendiente(id){
+  colaPend=colaPend.filter(x=>x.id!==id);
+  const N=nativoCaudal();
+  if(N){ try{ await N.marcarProcesados({ids:[id]}); }catch(e){} }
+  renderPendientes(); actualizarChipPendientes();
+}
+
+async function descartarPendiente(id){
+  const ok=await pedirConfirmacion('Descartar cobro','No se registrará ningún movimiento. Puedes anotarlo a mano si hace falta.','Descartar');
+  if(!ok) return;
+  quitarPendiente(id);
+  closeSheet('sheetPendEdit');
+  showToast('Cobro descartado');
+}
+
+/* ---------- Resumen que alimenta los avisos de la noche ---------- */
+function actualizarResumenNativo(){
+  const N=nativoCaudal(); if(!N) return;
+  const h=hoy();
+  const gastosHoy=DB.transacciones.filter(t=>t.tipo==='gasto'&&t.fecha===h);
+  const ini7=fechaMenos(h,6), iniPrev=fechaMenos(h,13), finPrev=fechaMenos(h,7);
+  const suma=a=>a.reduce((x,t)=>x+num(t.monto),0);
+  const enRango=(a,b)=>DB.transacciones.filter(t=>t.tipo==='gasto'&&t.fecha>=a&&t.fecha<=b);
+
+  let diario=0;
+  try{
+    const t=Engine.recalculate(mesActualSistema());
+    const dias=diasEnMes(mesActualSistema());
+    const restantes=Math.max(1,dias-new Date().getDate()+1);
+    diario=Math.max(0,(t.ingresos-t.gastos-t.tarjeta-t.ahorros)/restantes);
+  }catch(e){}
+
+  try{
+    N.guardarResumen({
+      fecha:h,
+      gastadoHoy:suma(gastosHoy),
+      movsHoy:gastosHoy.length,
+      diario:diario,
+      gastadoSemana:suma(enRango(ini7,h)),
+      gastadoSemanaPrevia:suma(enRango(iniPrev,finPrev))
+    });
+  }catch(e){}
+}
+
 /* ---------- 21. Arranque ---------- */
 function init(){
   loadDB(); getAllDataLocal();
@@ -4191,6 +4507,11 @@ function arrancarContenido(){
   setTimeout(revisarRespaldoAutomatico,1500);
   setInterval(runAlertEngine,60000);
   aplicarAccionDeAtajo();
+  /* Cobros leídos de las notificaciones del banco: se recogen al abrir y cada
+     vez que vuelves de segundo plano (ver el puente nativo). */
+  setTimeout(()=>sincronizarPendientes(false),1200);
+  setTimeout(actualizarResumenNativo,1800);
+  setInterval(actualizarResumenNativo,10*60000);
   setTimeout(()=>{
     $('boot').classList.add('gone');
     if(!DB.config.iniciado && !DB.bancos.length && !DB.transacciones.length) openSheet('sheetWelcome');
