@@ -3949,16 +3949,22 @@ function revisarPegado(){
   if(!t){ el.textContent=''; return null; }
   let d;
   try{ d=JSON.parse(t); }
-  catch(e){ el.textContent='Eso no es un respaldo completo: parece que se cortó al copiar. Asegúrate de seleccionar todo el texto.'; return null; }
+  catch(e){
+    el.textContent='El texto está incompleto: se cortó al copiar. Tiene '+t.length
+      +' caracteres y un respaldo suele pasar de 5,000. Selecciona TODO el archivo.';
+    el.style.color='var(--coral)';
+    return null;
+  }
   const cuerpo = d && d.transacciones ? d : (d && d.datos && d.datos.transacciones ? d.datos : null);
   if(!cuerpo){ el.textContent='El texto es válido pero no tiene la forma de un respaldo de Caudal.'; return null; }
+  el.style.color='var(--teal)';
   el.textContent='Listo para restaurar: '+(cuerpo.transacciones||[]).length+' movimientos, '
     +(cuerpo.bancos||[]).length+' cuentas, '+(cuerpo.metas||[]).length+' planes.';
   return cuerpo;
 }
 async function restaurarPegado(){
   const cuerpo=revisarPegado();
-  if(!cuerpo){ showToast('Revisa el texto pegado'); return; }
+  if(!cuerpo){ showToast($('pegarEstado').textContent||'Revisa el texto pegado'); hap(30); return; }
   const ok=await pedirConfirmacion('Restaurar respaldo',
     'Se reemplazan todos los datos actuales por los '+(cuerpo.transacciones||[]).length+' movimientos del respaldo.','Restaurar');
   if(!ok) return;
@@ -3972,6 +3978,39 @@ async function restaurarPegado(){
   closeAllSheets();
   showToast('Restaurado: '+nuevo.transacciones.length+' movimientos · '+nuevo.bancos.length+' cuentas');
 }
+
+/* Cuando abres un respaldo desde el gestor de archivos y eliges Caudal, el
+   contenido llega por aquí ya leído: sin selector de archivos de por medio. */
+async function revisarArchivoEntrante(){
+  const N=nativoCaudal();
+  if(!N || !N.leerArchivoEntrante) return;
+  let r;
+  try{ r=await N.leerArchivoEntrante(); }catch(e){ return; }
+  if(!r) return;
+
+  if(r.texto && r.texto.trim()){
+    openSheet('sheetPegar');
+    $('pegarTexto').value=r.texto.trim();
+    revisarPegado();
+    showToast('Respaldo abierto'+(r.nombre?' · '+r.nombre:''));
+    return;
+  }
+  if(r.base64){
+    try{
+      const bin=atob(r.base64), arr=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      if(typeof XLSX==='undefined'){ showToast('No se pudo cargar el lector de Excel'); return; }
+      const nuevo=desdeExcel(arr.buffer);
+      if(!nuevo){ showToast('Ese Excel no tiene forma de respaldo de Caudal'); return; }
+      const ok=await pedirConfirmacion('Restaurar respaldo',
+        'Se reemplazan todos los datos actuales por los '+nuevo.transacciones.length+' movimientos de "'+(r.nombre||'el archivo')+'".','Restaurar');
+      if(!ok) return;
+      applyServerData(nuevo); closeAllSheets();
+      showToast('Restaurado: '+nuevo.transacciones.length+' movimientos · '+nuevo.bancos.length+' cuentas');
+    }catch(e){ showToast('No se pudo leer el Excel: '+(e.message||'formato')); }
+  }
+}
+window.revisarArchivoEntrante = revisarArchivoEntrante;
 
 /* Saber qué versión está instalada: sirve para no perder tiempo probando
    un arreglo en un APK viejo. */
@@ -4694,6 +4733,7 @@ function arrancarContenido(){
   /* Cobros leídos de las notificaciones del banco: se recogen al abrir y cada
      vez que vuelves de segundo plano (ver el puente nativo). */
   setTimeout(()=>sincronizarPendientes(false),1200);
+  setTimeout(revisarArchivoEntrante,900);
   setTimeout(actualizarResumenNativo,1800);
   setInterval(actualizarResumenNativo,10*60000);
   setTimeout(()=>{

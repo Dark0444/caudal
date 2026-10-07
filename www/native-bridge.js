@@ -316,6 +316,10 @@
             if (typeof window.actualizarResumenNativo === 'function') {
               try { window.actualizarResumenNativo(); } catch (e) { }
             }
+            // Por si la app ya estaba viva y le mandaron un respaldo a abrir.
+            if (typeof window.revisarArchivoEntrante === 'function') {
+              try { window.revisarArchivoEntrante(); } catch (e) { }
+            }
             programarAvisos();
           }
         });

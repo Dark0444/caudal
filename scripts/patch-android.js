@@ -164,6 +164,41 @@ if (!manifest.includes('LectorNotificaciones')) {
   hechos.push('servicio y receptores declarados');
 }
 
+/* Abrir un respaldo con Caudal desde el gestor de archivos: así restaurar no
+   depende del selector de archivos del sistema, que en algunos teléfonos deja
+   los .json sin poder seleccionarse. */
+manifest = leer(manifestPath);
+if (!manifest.includes('CAUDAL_ABRIR_RESPALDO')) {
+  const filtros = `
+            <!-- CAUDAL_ABRIR_RESPALDO -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            </intent-filter>
+`;
+  const marca = '<category android:name="android.intent.category.LAUNCHER" />';
+  const cierre = manifest.indexOf('</intent-filter>', manifest.indexOf(marca));
+  if (manifest.includes(marca) && cierre > -1) {
+    const corte = cierre + '</intent-filter>'.length;
+    manifest = manifest.slice(0, corte) + filtros + manifest.slice(corte);
+    escribir(manifestPath, manifest);
+    hechos.push('abrir respaldos con la app');
+  } else {
+    console.log('::warning title=Manifiesto::No se pudo añadir el filtro para abrir respaldos.');
+  }
+}
+
 /* Capacitor no descubre solo un plugin que vive en la propia app: hay que
    registrarlo en MainActivity antes de que arranque el puente. */
 const mainPath = path.join(destinoJava, 'MainActivity.java');

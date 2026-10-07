@@ -25,6 +25,68 @@ import org.json.JSONObject;
 @CapacitorPlugin(name = "CaudalNativo")
 public class CaudalPlugin extends Plugin {
 
+    /* Si el usuario abre o comparte un archivo con Caudal estando la app ya
+       viva, Android no reemplaza el intent original: llega por aquí. */
+    private Intent intentEntrante;
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        intentEntrante = intent;
+    }
+
+    /**
+     * Devuelve el contenido del archivo con el que se abrió la app, si lo hubo.
+     * Es la vía fiable para restaurar un respaldo: el usuario toca el .json en
+     * su gestor de archivos y elige Caudal, sin pasar por el selector de
+     * archivos del sistema, que en algunos teléfonos deja los .json en gris.
+     */
+    @PluginMethod
+    public void leerArchivoEntrante(PluginCall call) {
+        JSObject r = new JSObject();
+        String texto = null, base64 = null, nombre = null;
+        try {
+            Intent i = intentEntrante;
+            if (i == null && getActivity() != null) i = getActivity().getIntent();
+
+            android.net.Uri uri = null;
+            if (i != null) {
+                String accion = i.getAction();
+                if (Intent.ACTION_VIEW.equals(accion)) uri = i.getData();
+                else if (Intent.ACTION_SEND.equals(accion)) uri = i.getParcelableExtra(Intent.EXTRA_STREAM);
+                if (uri == null && i.hasExtra(Intent.EXTRA_TEXT)) texto = i.getStringExtra(Intent.EXTRA_TEXT);
+            }
+
+            if (uri != null) {
+                java.io.InputStream in = getContext().getContentResolver().openInputStream(uri);
+                java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                in.close();
+                byte[] datos = bos.toByteArray();
+
+                nombre = uri.getLastPathSegment();
+                String bajo = nombre == null ? "" : nombre.toLowerCase(java.util.Locale.ROOT);
+                if (bajo.endsWith(".xlsx") || bajo.endsWith(".xls")) {
+                    base64 = android.util.Base64.encodeToString(datos, android.util.Base64.NO_WRAP);
+                } else {
+                    texto = new String(datos, "UTF-8");
+                }
+            }
+
+            /* Se consume: si no, al volver del segundo plano se repetiría. */
+            intentEntrante = null;
+            if (i != null) { i.setAction(null); i.setData(null); i.removeExtra(Intent.EXTRA_TEXT); }
+        } catch (Exception e) {
+            r.put("error", e.getMessage() == null ? "No se pudo leer el archivo" : e.getMessage());
+        }
+        r.put("texto", texto == null ? "" : texto);
+        r.put("base64", base64 == null ? "" : base64);
+        r.put("nombre", nombre == null ? "" : nombre);
+        call.resolve(r);
+    }
+
     @Override
     public void load() {
         Context ctx = getContext();
