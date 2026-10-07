@@ -1034,7 +1034,9 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
 
   <button class="btn ghost" type="button" id="btnExport">Descargar respaldo en Excel ahora</button>
   <button class="btn ghost" type="button" id="btnImport" style="margin-top:9px">Restaurar desde Excel</button>
-  <input type="file" id="fileImport" accept=".xlsx,.xls" class="hide">
+  <button class="btn ghost" type="button" id="btnExportJSON" style="margin-top:9px">Descargar respaldo exacto (.json)</button>
+  <input type="file" id="fileImport" class="hide">
+  <div class="muted" style="margin-top:8px;font-size:11.5px">El respaldo en Excel es legible y editable; el .json es una copia exacta y es el que conviene para restaurar. El botón de restaurar acepta los dos.</div>
 
   <div class="sec-title" style="margin:22px 2px 8px"><h2>Seguridad<button class="hint" id="pinHint" data-hint-title="Bloqueo con PIN" data-hint="Pide un PIN cada vez que abres la app, para que si alguien más toma tu teléfono no vea tus finanzas. El PIN se guarda solo en este dispositivo (como un código, no como texto plano) y no hay forma de recuperarlo si lo olvidas: tendrías que borrar todos los datos de la app.">?</button></h2></div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
@@ -3803,29 +3805,135 @@ function formatDateCell(v){
   if(m){ const y=m[3].length===2?'20'+m[3]:m[3]; return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
   const d=new Date(s); return isNaN(d)?hoy():d.toISOString().slice(0,10);
 }
-async function importFromExcel(ev){
-  const f=ev.target.files[0]; if(!f) return;
-  if(typeof XLSX==='undefined'){ showToast('Necesitas conexión para leer el Excel'); return; }
-  const okImp=await pedirConfirmacion('Restaurar respaldo','Esto reemplaza todos los datos actuales con los del archivo.','Restaurar');
+/* Restaura desde .json (copia exacta) o desde .xlsx (el respaldo legible).
+   Conservar los identificadores originales es lo que hace que la restauración
+   sirva de algo: cada movimiento apunta a su cuenta por id, así que si se les
+   generan ids nuevos, los movimientos quedan huérfanos y todo se ve en cero
+   aunque los datos sí hayan entrado. */
+async function importarRespaldo(ev){
+  const f=ev.target.files && ev.target.files[0];
+  if(!f){ showToast('No se eligió ningún archivo'); return; }
+  const esJSON = /\.json$/i.test(f.name) || f.type==='application/json';
+
+  if(!esJSON && typeof XLSX==='undefined'){
+    showToast('No se pudo cargar el lector de Excel; usa el respaldo .json');
+    ev.target.value=''; return;
+  }
+  const okImp=await pedirConfirmacion('Restaurar respaldo',
+    'Se reemplazan todos los datos actuales con los de "'+f.name+'".','Restaurar');
   if(!okImp){ ev.target.value=''; return; }
+
   const r=new FileReader();
+  r.onerror=()=>{ showToast('No se pudo leer el archivo del teléfono'); ev.target.value=''; };
   r.onload=e=>{
     try{
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      const hoja=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n]):[];
-      const nuevo=dbVacia();
-      nuevo.transacciones=hoja('Transacciones').filter(t=>t.id||t.monto).map(t=>Object.assign({},t,{fecha:formatDateCell(t.fecha),monto:num(t.monto),id:t.id||uid()}));
-      nuevo.bancos=hoja('Bancos').filter(b=>b.nombre).map(b=>Object.assign({id:uid()},b));
-      nuevo.categorias=hoja('Categorias').filter(c=>c.nombre).map(c=>Object.assign({id:uid()},c));
-      nuevo.obligaciones=hoja('Obligaciones').filter(o=>o.nombre).map(o=>Object.assign({id:uid()},o));
-      nuevo.metas=hoja('Metas').filter(m=>m.nombre).map(m=>Object.assign({id:uid()},m));
-      const cfg=hoja('Configuracion')[0]; if(cfg) nuevo.config=Object.assign(nuevo.config,cfg);
+      const nuevo = esJSON ? desdeJSON(e.target.result) : desdeExcel(e.target.result);
+      if(!nuevo){ showToast('El archivo no tiene el formato de un respaldo de Caudal'); ev.target.value=''; return; }
       applyServerData(nuevo);
-      closeAllSheets(); showToast('Respaldo restaurado');
-    }catch(err){ showToast('No se pudo leer el archivo'); }
+      reconciliarMetas && reconciliarMetas();
+      closeAllSheets();
+      showToast('Restaurado: '+nuevo.transacciones.length+' movimientos · '
+        +nuevo.bancos.length+' cuentas · '+nuevo.metas.length+' planes');
+    }catch(err){
+      showToast('No se pudo leer el archivo: '+(err && err.message ? err.message : 'formato no reconocido'));
+    }
     ev.target.value='';
   };
-  r.readAsArrayBuffer(f);
+  if(esJSON) r.readAsText(f); else r.readAsArrayBuffer(f);
+}
+
+function desdeJSON(txt){
+  const d=JSON.parse(txt);
+  const cuerpo = d && d.transacciones ? d : (d && d.datos && d.datos.transacciones ? d.datos : null);
+  if(!cuerpo) return null;
+  const nuevo=dbVacia();
+  ['transacciones','bancos','categorias','obligaciones','metas'].forEach(k=>{
+    if(Array.isArray(cuerpo[k])) nuevo[k]=cuerpo[k];
+  });
+  if(cuerpo.config) nuevo.config=Object.assign(nuevo.config,cuerpo.config);
+  if(cuerpo.reportes) nuevo.reportes=cuerpo.reportes;
+  return nuevo;
+}
+
+function desdeExcel(buffer){
+  const wb=XLSX.read(buffer,{type:'array'});
+  const hoja=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n]):[];
+  if(!wb.Sheets['Transacciones'] && !wb.Sheets['Bancos']) return null;
+
+  /* Excel devuelve todo como texto o número suelto: hay que devolverle el tipo
+     a lo que la app espera, y respetar el id original de cada registro. */
+  const limpiar=o=>{
+    const x=Object.assign({},o);
+    Object.keys(x).forEach(k=>{ if(x[k]==='') delete x[k]; });
+    return x;
+  };
+  const nuevo=dbVacia();
+  nuevo.transacciones=hoja('Transacciones').filter(t=>t.id||t.monto).map(t=>{
+    const x=limpiar(t);
+    x.id=String(x.id||uid());
+    x.fecha=formatDateCell(x.fecha);
+    x.monto=num(x.monto);
+    ['bancoId','bancoDestinoId','tarjetaId','metaId','obligacionId'].forEach(k=>{
+      if(x[k]!=null) x[k]=String(x[k]);
+    });
+    if(x.esTC!=null) x.esTC = x.esTC===true || x.esTC==='true' || x.esTC===1 || x.esTC==='1';
+    if(x.auto!=null) x.auto = x.auto===true || x.auto==='true' || x.auto===1 || x.auto==='1';
+    return x;
+  });
+  nuevo.bancos=hoja('Bancos').filter(b=>b.nombre).map(b=>{
+    const x=limpiar(b);
+    x.id=String(x.id||uid());
+    ['saldoInicial','deudaInicial','limite'].forEach(k=>{ if(x[k]!=null) x[k]=num(x[k]); });
+    if(x.last4!=null) x.last4=String(x.last4).replace(/\D/g,'').slice(-4);
+    return x;
+  });
+  nuevo.categorias=hoja('Categorias').filter(c=>c.nombre).map(c=>{
+    const x=limpiar(c); x.id=String(x.id||uid()); x.limite=num(x.limite); return x;
+  });
+  nuevo.obligaciones=hoja('Obligaciones').filter(o=>o.nombre).map(o=>{
+    const x=limpiar(o);
+    x.id=String(x.id||uid());
+    x.monto=num(x.monto); x.dia=num(x.dia)||1;
+    if(x.fecha) x.fecha=formatDateCell(x.fecha);
+    if(x.repite!=null) x.repite = !(x.repite===false || x.repite==='false' || x.repite===0 || x.repite==='0');
+    return x;
+  });
+  nuevo.metas=hoja('Metas').filter(m=>m.nombre).map(m=>{
+    const x=limpiar(m);
+    x.id=String(x.id||uid());
+    ['objetivo','actual','aporte'].forEach(k=>{ if(x[k]!=null) x[k]=num(x[k]); });
+    return x;
+  });
+  const cfg=hoja('Configuracion')[0];
+  if(cfg){
+    const c=limpiar(cfg);
+    /* Excel aplana los objetos a texto; solo recuperamos lo que es dato simple. */
+    Object.keys(c).forEach(k=>{ if(typeof c[k]==='string' && c[k].trim().startsWith('[object')) delete c[k]; });
+    nuevo.config=Object.assign(nuevo.config,c);
+  }
+  return nuevo;
+}
+
+/* Respaldo exacto: lo que de verdad conviene para restaurar. */
+function exportarJSON(){
+  const datos={
+    app:'Caudal', version:1, generado:new Date().toISOString(),
+    transacciones:DB.transacciones, bancos:DB.bancos, categorias:DB.categorias,
+    obligaciones:DB.obligaciones, metas:DB.metas, config:DB.config, reportes:DB.reportes||{}
+  };
+  const txt=JSON.stringify(datos);
+  const nombre='Caudal_Respaldo_'+marcaTiempo()+'.json';
+  if(nativoDisponible() && NebulaNativo.guardarArchivo){
+    const b64=btoa(unescape(encodeURIComponent(txt)));
+    NebulaNativo.guardarArchivo(nombre,b64,'application/json')
+      .then(ok=>showToast(ok?'Respaldo guardado en Documentos':'No se pudo guardar el respaldo'));
+    return;
+  }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));
+  a.download=nombre; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  showToast('Respaldo exacto descargado');
 }
 async function limpiarTodo(){
   const ok=await pedirConfirmacion('Borrar todos los datos',
@@ -4075,7 +4183,8 @@ function wire(){
   $('respaldoSeg').onclick=e=>{ const b=e.target.closest('[data-r]'); if(b) setRespaldoIntervalo(Number(b.dataset.r)); };
   $('btnExport').onclick=()=>exportToExcel(false);
   $('btnImport').onclick=()=>$('fileImport').click();
-  $('fileImport').onchange=importFromExcel;
+  $('fileImport').onchange=importarRespaldo;
+  $('btnExportJSON').onclick=exportarJSON;
   $('btnWipe').onclick=limpiarTodo;
   $('confirmOk').onclick=()=>resolverConfirm(true);
 
