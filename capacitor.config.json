@@ -1,0 +1,29 @@
+{
+  "appId": "com.caudal.finanzas",
+  "appName": "Caudal",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0B0E23"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_caudal",
+      "iconColor": "#8B6CFF"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 700,
+      "launchAutoHide": true,
+      "backgroundColor": "#0B0E23",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0B0E23",
+      "overlaysWebView": false
+    }
+  }
+}

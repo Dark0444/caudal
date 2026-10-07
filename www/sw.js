@@ -6,7 +6,7 @@
    No hay servidor ni "push" real: todas las notificaciones las decide y muestra la propia
    app (o este worker, cuando la app está cerrada, ver mensaje "programar-recordatorio" abajo).
 */
-const CACHE = 'nebula-shell-v1';
+const CACHE = 'caudal-shell-v1';
 const APP_SHELL = ['./', './index.html', './manifest.json',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
@@ -57,7 +57,7 @@ self.addEventListener('notificationclick', evt=>{
 // cuando la app está instalada. Si el navegador no lo soporta, la app revisa igual
 // cada vez que la abres.
 self.addEventListener('periodicsync', evt=>{
-  if(evt.tag==='nebula-revision') evt.waitUntil(revisarDesdeWorker());
+  if(evt.tag==='caudal-revision') evt.waitUntil(revisarDesdeWorker());
 });
 
 async function revisarDesdeWorker(){

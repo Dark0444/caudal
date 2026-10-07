@@ -1,0 +1,30 @@
+{
+  "name": "caudal",
+  "version": "1.0.0",
+  "description": "Caudal — control de finanzas personales (app Android)",
+  "private": true,
+  "scripts": {
+    "vendor": "node scripts/vendor.js",
+    "prepare:android": "npx cap add android && node scripts/patch-android.js",
+    "sync": "npx cap sync android && node scripts/patch-android.js",
+    "apk": "cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/filesystem": "^6.0.3",
+    "@capacitor/haptics": "^6.0.2",
+    "@capacitor/local-notifications": "^6.1.2",
+    "@capacitor/share": "^6.0.3",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.0",
+    "@fontsource/manrope": "^5.1.0",
+    "@fontsource/space-grotesk": "^5.1.0",
+    "xlsx": "^0.18.5"
+  }
+}

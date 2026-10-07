@@ -1,6 +1,6 @@
 {
-  "name": "Nébula Finanzas",
-  "short_name": "Nébula",
+  "name": "Caudal",
+  "short_name": "Caudal",
   "description": "Control total de tus finanzas personales: cuentas, presupuestos, tarjeta de crédito, metas y respaldo automático.",
   "id": "/",
   "start_url": "./index.html",

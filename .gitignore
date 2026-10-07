@@ -1,0 +1,15 @@
+# El proyecto nativo se regenera en cada compilación (scripts/patch-android.js
+# aplica encima los permisos, la firma y los íconos).
+/android/
+/ios/
+
+node_modules/
+www/vendor/
+
+*.log
+install.txt
+capadd.txt
+gradle.txt
+assets.txt
+Caudal.apk
+.DS_Store

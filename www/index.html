@@ -9,14 +9,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Nébula">
 <meta name="description" content="Control total de tus finanzas personales: cuentas, presupuestos, tarjeta de crédito, metas y respaldo automático.">
-<title>Nébula Finanzas</title>
+<title>Caudal</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<link href="vendor/fuentes.css" rel="stylesheet">
+<!-- SheetJS local (se copia en la compilación). Si faltara, se intenta el CDN,
+     que solo funciona con internet; el respaldo JSON nunca depende de esto. -->
+<script src="vendor/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'" defer></script>
+<script src="native-bridge.js"></script>
 <style>
 /* ============================================================
    NÉBULA — sistema de diseño
@@ -474,7 +475,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
 </head>
 <body>
 
-<div id="boot"><div class="logo"><div class="orb"></div><b>Nébula Finanzas</b></div></div>
+<div id="boot"><div class="logo"><div class="orb"></div><b>Caudal</b></div></div>
 
 <div id="app">
   <header class="topbar">
@@ -1189,12 +1190,21 @@ const ACCIONES={
   addMeta:localAddMeta, editMeta:localEditMeta, abonarMeta:localAbonarMeta, retirarAhorro:localRetirarAhorro, delMeta:localDeleteMeta,
   setLimiteTC:localSetLimiteTC
 };
+/* Tras cualquier cambio en los datos, el APK vuelve a programar sus alarmas para
+   que los avisos de obligaciones sigan siendo correctos aunque la app se cierre.
+   En el navegador no existe NebulaNativo y esto no hace nada. */
+let reprogT=null;
+function reprogramarNativo(){
+  if(typeof NebulaNativo==='undefined' || !NebulaNativo.programarAvisos) return;
+  clearTimeout(reprogT);
+  reprogT=setTimeout(()=>{ try{ NebulaNativo.programarAvisos(); }catch(e){} },800);
+}
 function postAction(tipo,payload){
   const fn=ACCIONES[tipo];
   if(!fn){ console.warn('Acción desconocida:',tipo); return null; }
   const r=fn(payload);
   if(r && r.id && !r.auto && (tipo==='addTx'||tipo==='pagarOb')) aplicarAutomatizacionesMeta(r);
-  saveDB(); getAllDataLocal(); renderAll(); runAlertEngine();
+  saveDB(); getAllDataLocal(); renderAll(); runAlertEngine(); reprogramarNativo();
   return r;
 }
 /* Automatizaciones de planes de ahorro: redondeo de gastos y aparte automático de ingresos.
@@ -3340,7 +3350,7 @@ function renderNotifEstado(){
     const ok=NebulaNativo.tienePermiso?NebulaNativo.tienePermiso():true;
     el.textContent = ok
       ? 'Instalada como app · las notificaciones salen directo a la barra del teléfono, sin depender del navegador.'
-      : 'Instalada como app, pero falta el permiso de notificaciones. Actívalo en Ajustes del teléfono › Apps › Nébula Finanzas › Notificaciones.';
+      : 'Instalada como app, pero falta el permiso de notificaciones. Actívalo en Ajustes del teléfono › Apps › Caudal › Notificaciones.';
     btn.classList.toggle('hide',ok); $('btnNotifTest').classList.remove('hide'); $('btnNotifOpen').classList.add('hide');
     return;
   }
@@ -3393,11 +3403,11 @@ async function copiarUrlApp(){
 async function askNotifPermission(){
   if(nativoDisponible()){
     if(NebulaNativo.tienePermiso && NebulaNativo.tienePermiso()){
-      await mostrarNotificacion('Nébula Finanzas','Listo, aquí te avisaré de tus presupuestos y obligaciones.');
+      await mostrarNotificacion('Caudal','Listo, aquí te avisaré de tus presupuestos y obligaciones.');
       showToast('Notificaciones activadas'); renderNotifEstado(); return 'granted';
     }
     if(NebulaNativo.abrirAjustes){ NebulaNativo.abrirAjustes(); showToast('Actívalas ahí y vuelve a la app'); }
-    else showToast('Actívalas en Ajustes del teléfono › Apps › Nébula Finanzas › Notificaciones');
+    else showToast('Actívalas en Ajustes del teléfono › Apps › Caudal › Notificaciones');
     return 'denied';
   }
   if(!notifSoportadas()){ showToast('Este navegador no soporta notificaciones'); return 'unsupported'; }
@@ -3405,21 +3415,26 @@ async function askNotifPermission(){
   let p=Notification.permission;
   if(p==='default'){ try{ p=await Notification.requestPermission(); }catch(e){ p=Notification.permission; } }
   renderNotifEstado();
-  if(p==='granted'){ await mostrarNotificacion('Nébula Finanzas','Listo, aquí te avisaré de tus presupuestos y obligaciones.'); showToast('Notificaciones activadas'); }
+  if(p==='granted'){ await mostrarNotificacion('Caudal','Listo, aquí te avisaré de tus presupuestos y obligaciones.'); showToast('Notificaciones activadas'); }
   else if(p==='denied') showToast('El navegador las tiene bloqueadas');
   else showToast('Permiso no concedido');
   return p;
 }
 async function probarNotificacion(){
   const cuerpo='Notificación de prueba: así te avisaré de presupuestos y obligaciones.';
-  if(notifSoportadas() && Notification.permission==='granted'){
-    const ok=await mostrarNotificacion('Nébula Finanzas',cuerpo);
+  if(nativoDisponible()){
+    const okN=await mostrarNotificacion('Caudal',cuerpo);
+    showToast(okN?'Notificación enviada a la barra del teléfono':'No se pudo mostrar; revisa el permiso de notificaciones');
+    return;
+  }
+  if(typeof Notification!=='undefined' && Notification.permission==='granted'){
+    const ok=await mostrarNotificacion('Caudal',cuerpo);
     if(ok){ showToast('Notificación enviada al sistema'); return; }
-  }else if(notifSoportadas() && Notification.permission==='default' && !enMarco()){
+  }else if(typeof Notification!=='undefined' && Notification.permission==='default' && !enMarco()){
     const p=await askNotifPermission();
     if(p==='granted') return;
   }
-  avisoEnApp('Nébula Finanzas',cuerpo,'🔔');
+  avisoEnApp('Caudal',cuerpo,'🔔');
   showToast('Aviso mostrado dentro de la app');
 }
 function notifPrefsCfg(){
@@ -3432,10 +3447,13 @@ function pushNotify(titulo,cuerpo,clave,icono,cat){
   if(cat && notifPrefsCfg()[cat]===false) return;
   if(DB.descartadas.includes('push:'+clave)) return;
   DB.descartadas.push('push:'+clave);
-  if(notifSoportadas() && Notification.permission==='granted'){
+  if(nativoDisponible()){
+    mostrarNotificacion(titulo,cuerpo).then(ok=>{ if(!ok) avisoEnApp(titulo,cuerpo,icono); });
+  }else if(typeof Notification!=='undefined' && Notification.permission==='granted'){
     mostrarNotificacion(titulo,cuerpo).then(ok=>{ if(!ok) avisoEnApp(titulo,cuerpo,icono); });
   }else avisoEnApp(titulo,cuerpo,icono);
 }
+window.runAlertEngine = runAlertEngine;
 function runAlertEngine(){
   const m=mesActualSistema();
   Engine.budgetsFor(m).forEach(b=>{
@@ -3662,6 +3680,7 @@ function renderNotifPrefs(){
   const cfg=notifPrefsCfg();
   document.querySelectorAll('#notifPrefList [data-np]').forEach(el=>{ el.checked = cfg[el.dataset.np]!==false; });
 }
+window.toggleNotifPanel = toggleNotifPanel;
 function toggleNotifPanel(){ renderNotifPanel(); renderNotifEstado(); renderNotifPrefs(); openSheet('sheetAlerts'); }
 
 /* ---------- 18. Respaldo Excel ---------- */
@@ -3687,7 +3706,14 @@ function exportToExcel(automatico){
   Object.entries(hojas).forEach(([n,d])=>{
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d.length?d:[{}]),n);
   });
-  XLSX.writeFile(wb,'Nebula_Respaldo_'+marcaTiempo()+'.xlsx');
+  const nombreArch='Caudal_Respaldo_'+marcaTiempo()+'.xlsx';
+  if(nativoDisponible() && NebulaNativo.guardarArchivo){
+    const b64=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
+    NebulaNativo.guardarArchivo(nombreArch,b64,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .then(ok=>showToast(ok?'Respaldo guardado en Documentos':'No se pudo guardar el respaldo'));
+    return;
+  }
+  XLSX.writeFile(wb,nombreArch);
   if(!automatico) showToast('Respaldo descargado');
 }
 /* ---------- Respaldo automático programado ---------- */

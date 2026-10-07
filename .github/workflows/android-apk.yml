@@ -1,0 +1,112 @@
+name: APK de Caudal
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar dependencias
+        run: |
+          set +e
+          npm install > install.txt 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            msg=$(grep -iE "error|ETARGET|notarget|ERESOLVE" install.txt | head -30 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=npm install falló::$msg"
+            exit 1
+          fi
+          echo "::notice title=Dependencias listas::npm install OK"
+
+      - name: Copiar librerías y fuentes locales
+        run: node scripts/vendor.js
+
+      - name: Generar el proyecto Android
+        run: |
+          set +e
+          npx cap add android > capadd.txt 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            msg=$(tail -30 capadd.txt | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=cap add android falló::$msg"
+            exit 1
+          fi
+          npx cap sync android >> capadd.txt 2>&1
+
+      - name: Aplicar permisos, firma e íconos
+        run: node scripts/patch-android.js
+
+      - name: Generar íconos y splash
+        continue-on-error: true
+        run: |
+          set +e
+          npx @capacitor/assets generate --android --assetPath assets > assets.txt 2>&1
+          if [ $? -ne 0 ]; then
+            echo "::warning title=Íconos::No se generaron los íconos adaptativos; el APK usará los de Capacitor.%0A$(tail -15 assets.txt | sed ':a;N;$!ba;s/\n/%0A/g')"
+          fi
+
+      - name: Compilar el APK
+        run: |
+          set +e
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --console=plain > ../gradle.txt 2>&1
+          code=$?
+          cd ..
+          if [ $code -ne 0 ]; then
+            msg=$(grep -E "What went wrong|error:|ERROR:|Execution failed|not found|FAILED|Caused by" -A3 gradle.txt | head -50 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Gradle falló::$msg"
+            exit 1
+          fi
+          echo "::notice title=APK compilado::assembleRelease terminó bien"
+
+      - name: Preparar el archivo
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error title=No se encontró el APK::Gradle terminó pero no dejó ningún .apk"
+            exit 1
+          fi
+          cp "$APK" Caudal.apk
+          echo "TAMANO=$(du -h Caudal.apk | cut -f1)" >> $GITHUB_ENV
+          echo "::notice title=APK listo::$(du -h Caudal.apk | cut -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Caudal-apk
+          path: Caudal.apk
+
+      - name: Publicar para descargar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete apk-latest --cleanup-tag -y || true
+          gh release create apk-latest Caudal.apk \
+            --title "Caudal (última versión)" \
+            --notes "APK compilado automáticamente desde el commit ${GITHUB_SHA::7}. Tamaño: ${TAMANO}.
+
+          Descárgalo e instálalo encima de la versión anterior: va firmado siempre con la misma llave, así que no hace falta desinstalar.
+
+          La primera vez Android te pedirá permitir la instalación desde el navegador, y al abrir la app te pedirá el permiso de notificaciones. Acéptalo: es lo que hace que los avisos de obligaciones suenen con la app cerrada." \
+            --latest
+          echo "::notice title=Descarga::https://github.com/${GITHUB_REPOSITORY}/releases/download/apk-latest/Caudal.apk"
