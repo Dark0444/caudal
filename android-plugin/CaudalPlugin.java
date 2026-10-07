@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.provider.Settings;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -81,7 +82,8 @@ public class CaudalPlugin extends Plugin {
      */
     @PluginMethod
     public void marcarProcesados(PluginCall call) {
-        JSONArray ids = call.getArray("ids", new JSONArray());
+        /* getArray devuelve el JSArray de Capacitor, que hereda de JSONArray. */
+        JSArray ids = call.getArray("ids", new JSArray());
         JSONArray cola = Almacen.leerArreglo(getContext(), Almacen.COLA);
         JSONArray queda = new JSONArray();
 
