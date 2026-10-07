@@ -911,6 +911,19 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   <div id="repBody" style="margin-top:14px"></div>
 </div>
 
+<!-- Restaurar pegando el contenido del respaldo .json -->
+<div class="sheet" id="sheetPegar">
+  <div class="grab"></div>
+  <h3>Restaurar pegando el respaldo</h3>
+  <p class="sub">Si el selector de archivos de Android no te deja elegir el respaldo, abre el .json (por ejemplo tocándolo desde Descargas, se abre en el navegador), selecciona todo, copia y pégalo aquí.</p>
+  <textarea class="note" id="pegarTexto" style="min-height:140px;font-family:monospace;font-size:11px" placeholder='{"app":"Caudal","transacciones":[ ... '></textarea>
+  <div class="btn-row" style="margin-top:12px">
+    <button class="btn ghost" type="button" id="btnPegarDesdePortapapeles">Pegar del portapapeles</button>
+    <button class="btn" type="button" id="btnPegarRestaurar">Restaurar</button>
+  </div>
+  <div class="muted" id="pegarEstado" style="margin-top:12px;font-size:11.5px"></div>
+</div>
+
 <!-- Cobros detectados de las notificaciones del banco -->
 <div class="sheet" id="sheetPendientes">
   <div class="grab"></div>
@@ -1035,7 +1048,9 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   <button class="btn ghost" type="button" id="btnExport">Descargar respaldo en Excel ahora</button>
   <button class="btn ghost" type="button" id="btnImport" style="margin-top:9px">Restaurar desde Excel</button>
   <button class="btn ghost" type="button" id="btnExportJSON" style="margin-top:9px">Descargar respaldo exacto (.json)</button>
+  <button class="btn ghost" type="button" id="btnPegarRespaldo" style="margin-top:9px">Restaurar pegando el respaldo</button>
   <input type="file" id="fileImport" class="hide">
+  <div class="muted" id="versionApp" style="margin-top:10px;font-size:11px;text-align:center"></div>
   <div class="muted" style="margin-top:8px;font-size:11.5px">El respaldo en Excel es legible y editable; el .json es una copia exacta y es el que conviene para restaurar. El botón de restaurar acepta los dos.</div>
 
   <div class="sec-title" style="margin:22px 2px 8px"><h2>Seguridad<button class="hint" id="pinHint" data-hint-title="Bloqueo con PIN" data-hint="Pide un PIN cada vez que abres la app, para que si alguien más toma tu teléfono no vea tus finanzas. El PIN se guarda solo en este dispositivo (como un código, no como texto plano) y no hay forma de recuperarlo si lo olvidas: tendrías que borrar todos los datos de la app.">?</button></h2></div>
@@ -3729,6 +3744,7 @@ function toggleNotifPanel(){ renderNotifPanel(); renderNotifEstado(); renderNoti
 
 /* ---------- 18. Respaldo Excel ---------- */
 function openAdminPanel(){
+  mostrarVersionApp();
   $('stTx').textContent=DB.transacciones.length;
   $('stBancos').textContent=DB.bancos.length;
   $('stCats').textContent=DB.categorias.length;
@@ -3912,6 +3928,61 @@ function desdeExcel(buffer){
     nuevo.config=Object.assign(nuevo.config,c);
   }
   return nuevo;
+}
+
+/* Restaurar pegando el texto: no depende del selector de archivos de Android,
+   que es justo la pieza que falla en algunos teléfonos. */
+function abrirPegarRespaldo(){
+  $('pegarTexto').value=''; $('pegarEstado').textContent='';
+  openSheet('sheetPegar');
+}
+async function pegarDelPortapapeles(){
+  try{
+    const t=await navigator.clipboard.readText();
+    $('pegarTexto').value=t;
+    revisarPegado();
+  }catch(e){ showToast('Pega el texto a mano en el cuadro'); }
+}
+function revisarPegado(){
+  const t=$('pegarTexto').value.trim();
+  const el=$('pegarEstado');
+  if(!t){ el.textContent=''; return null; }
+  let d;
+  try{ d=JSON.parse(t); }
+  catch(e){ el.textContent='Eso no es un respaldo completo: parece que se cortó al copiar. Asegúrate de seleccionar todo el texto.'; return null; }
+  const cuerpo = d && d.transacciones ? d : (d && d.datos && d.datos.transacciones ? d.datos : null);
+  if(!cuerpo){ el.textContent='El texto es válido pero no tiene la forma de un respaldo de Caudal.'; return null; }
+  el.textContent='Listo para restaurar: '+(cuerpo.transacciones||[]).length+' movimientos, '
+    +(cuerpo.bancos||[]).length+' cuentas, '+(cuerpo.metas||[]).length+' planes.';
+  return cuerpo;
+}
+async function restaurarPegado(){
+  const cuerpo=revisarPegado();
+  if(!cuerpo){ showToast('Revisa el texto pegado'); return; }
+  const ok=await pedirConfirmacion('Restaurar respaldo',
+    'Se reemplazan todos los datos actuales por los '+(cuerpo.transacciones||[]).length+' movimientos del respaldo.','Restaurar');
+  if(!ok) return;
+  const nuevo=dbVacia();
+  ['transacciones','bancos','categorias','obligaciones','metas'].forEach(k=>{
+    if(Array.isArray(cuerpo[k])) nuevo[k]=cuerpo[k];
+  });
+  if(cuerpo.config) nuevo.config=Object.assign(nuevo.config,cuerpo.config);
+  if(cuerpo.reportes) nuevo.reportes=cuerpo.reportes;
+  applyServerData(nuevo);
+  closeAllSheets();
+  showToast('Restaurado: '+nuevo.transacciones.length+' movimientos · '+nuevo.bancos.length+' cuentas');
+}
+
+/* Saber qué versión está instalada: sirve para no perder tiempo probando
+   un arreglo en un APK viejo. */
+async function mostrarVersionApp(){
+  const el=$('versionApp'); if(!el) return;
+  let txt='Versión web (navegador)';
+  try{
+    const App=window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App;
+    if(App){ const i=await App.getInfo(); txt='Caudal '+i.version+' (build '+i.build+')'; }
+  }catch(e){}
+  el.textContent=txt;
 }
 
 /* Respaldo exacto: lo que de verdad conviene para restaurar. */
@@ -4185,6 +4256,10 @@ function wire(){
   $('btnImport').onclick=()=>$('fileImport').click();
   $('fileImport').onchange=importarRespaldo;
   $('btnExportJSON').onclick=exportarJSON;
+  $('btnPegarRespaldo').onclick=abrirPegarRespaldo;
+  $('btnPegarDesdePortapapeles').onclick=pegarDelPortapapeles;
+  $('btnPegarRestaurar').onclick=restaurarPegado;
+  $('pegarTexto').oninput=revisarPegado;
   $('btnWipe').onclick=limpiarTodo;
   $('confirmOk').onclick=()=>resolverConfirm(true);
 
