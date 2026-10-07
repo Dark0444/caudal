@@ -1492,12 +1492,17 @@ function openSheet(id){
   const s=$(id); if(!s) return;
   $('scrim').classList.add('on'); s.classList.add('on');
   if(!pila.includes(id)) pila.push(id);
+  /* Todas las hojas comparten la misma capa en el CSS, así que la que se veía
+     era la que estuviera más abajo en el HTML, no la que se acabara de abrir:
+     una hoja abierta desde otra posterior quedaba invisible detrás. Con esto
+     manda siempre la última en abrirse. */
+  s.style.zIndex = 61 + pila.length;
   document.body.style.overflow='hidden'; hap(10);
 }
 function closeSheet(id){
   if(id==='sheetConfirm'&&_confirmResolve){ const r=_confirmResolve; _confirmResolve=null; r(false); }
   if(id==='sheetPinConfirm'&&_pinConfirmResolve){ const r=_pinConfirmResolve; _pinConfirmResolve=null; r(false); }
-  const s=$(id); if(s) s.classList.remove('on');
+  const s=$(id); if(s){ s.classList.remove('on'); s.style.zIndex=''; }
   const i=pila.indexOf(id); if(i>-1) pila.splice(i,1);
   if(!pila.length){ $('scrim').classList.remove('on'); document.body.style.overflow=''; }
 }
