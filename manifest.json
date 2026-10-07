@@ -1,0 +1,37 @@
+{
+  "name": "Nébula Finanzas",
+  "short_name": "Nébula",
+  "description": "Control total de tus finanzas personales: cuentas, presupuestos, tarjeta de crédito, metas y respaldo automático.",
+  "id": "/",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#0B0E23",
+  "theme_color": "#0B0E23",
+  "orientation": "portrait",
+  "lang": "es-GT",
+  "dir": "ltr",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Gasto rápido",
+      "short_name": "Gasto",
+      "description": "Registrar un gasto en segundos",
+      "url": "./index.html?accion=quick",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Nuevo ingreso",
+      "short_name": "Ingreso",
+      "description": "Registrar dinero que entró a una cuenta",
+      "url": "./index.html?accion=ingreso",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
