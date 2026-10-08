@@ -524,15 +524,20 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           <b style="font-size:13px;flex:1">Ciclo <span id="cicloRango"></span></b>
           <span class="muted" id="cicloFaltan" style="font-size:11.5px"></span>
           <button class="hint" id="cicloHint" data-hint-title="Tu ciclo de pago"
-            data-hint="El mes del calendario no sirve si cobras a mitad y a fin de mes: del 1 al 14 vives del sueldo anterior y todo se ve en rojo sin razón. Esto mide de pago a pago. «Libre» es lo que tienes en tus cuentas menos las obligaciones que aún vencen dentro del ciclo. Los cambios de día de pago se ajustan en Ajustes.">?</button>
+            data-hint="El mes del calendario no sirve si cobras a mitad y a fin de mes: del 1 al 14 vives del sueldo anterior y todo se ve en rojo sin razón. Esto mide de pago a pago. El número grande es lo que te vas a quedar si sigues al ritmo que llevas, contando lo que le abonas a la tarjeta (eso baja deuda, así que también es ahorro) y descontando las obligaciones que aún vencen dentro del ciclo. El gasto por día que aparece es el techo que NO toca tu meta, no una invitación a gastarlo.">?</button>
         </div>
         <div style="height:5px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-bottom:13px">
           <div id="cicloBarra" style="height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--teal));transition:width .8s cubic-bezier(.22,.7,.3,1)"></div>
         </div>
-        <div class="muted" id="cicloTitulo" style="font-size:11.5px">Libre de este pago</div>
+        <div class="muted" id="cicloTitulo" style="font-size:11.5px">Vas a ahorrar</div>
         <b class="num" id="cicloLibre" style="font-size:30px;display:block;letter-spacing:-.03em;line-height:1.15">Q0</b>
-        <div class="muted" id="cicloPorDia" style="font-size:12.5px;margin-top:4px"></div>
+        <div id="cicloMeta" style="font-size:12.5px;margin-top:5px"></div>
+        <div style="height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:8px">
+          <div id="cicloMetaBarra" style="height:100%;width:0;border-radius:99px;transition:width .8s cubic-bezier(.22,.7,.3,1)"></div>
+        </div>
+        <div class="muted" id="cicloPorDia" style="font-size:12px;margin-top:10px"></div>
         <div class="muted" id="cicloDetalle" style="font-size:11.5px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line);line-height:1.6"></div>
+        <button class="btn ghost" type="button" id="btnCicloMeta" style="margin-top:12px;padding:10px;font-size:12.5px">Cambiar mi meta de ahorro</button>
       </div>
 
       <div class="card tight hide" id="proyCard" style="display:flex;gap:11px;align-items:flex-start;margin-top:-4px">
@@ -950,6 +955,21 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <button class="btn" type="button" id="btnPegarRestaurar">Restaurar</button>
   </div>
   <div class="muted" id="pegarEstado" style="margin-top:12px;font-size:11.5px"></div>
+</div>
+
+<!-- Meta de ahorro de cada ciclo -->
+<div class="sheet" id="sheetMetaCiclo">
+  <div class="grab"></div>
+  <h3>Meta de ahorro por pago</h3>
+  <p class="sub" id="metaCicloSub">De cada sueldo, cuánto quieres que se quede. Lo que le abonas a la tarjeta cuenta: bajar deuda también es ahorrar.</p>
+  <form id="metaCicloForm">
+    <div class="chips wrap" id="metaCicloChips" style="margin-bottom:14px"></div>
+    <label class="f"><span>O escribe el monto (Q) — 0 para quitarla</span>
+      <input class="inp num" id="metaCicloMonto" type="number" step="10" min="0" inputmode="decimal"></label>
+    <div class="muted" id="metaCicloAyuda" style="margin:-4px 0 14px;font-size:11.5px"></div>
+    <button class="btn" type="submit">Guardar meta</button>
+    <button class="btn ghost" type="button" id="metaCicloCancelar" style="margin-top:9px">Cancelar</button>
+  </form>
 </div>
 
 <!-- Cobros detectados de las notificaciones del banco -->
@@ -2015,17 +2035,37 @@ function resumenCiclo(){
     porPagar.push({nombre:ob.nombre, monto:falta, venc:v2});
   });
 
-  /* "Libre" es lo que queda DEL SUELDO de este ciclo, no todo lo que hay en las
-     cuentas: sumar los ahorros daría un margen diario que en realidad no se
+  /* "Libre" es el efectivo que queda DEL SUELDO de este ciclo, no todo lo que
+     hay en las cuentas: sumar los ahorros daría un margen que en realidad no se
      piensa gastar. Si el ingreso del ciclo todavía no está registrado, se cae
      al saldo líquido para no mostrar un número sin sentido. */
   const disponible=Engine.liquidoTotal();
   const base = entro>0 ? 'ciclo' : 'saldo';
-  const libre = (base==='ciclo' ? entro-salio : disponible) - comprometido;
-  const porDia = c.diasRestantes>0 ? libre/c.diasRestantes : libre;
+  const bruto = base==='ciclo' ? entro-salio : disponible;
+  const libre = bruto - comprometido;
   const ritmo = c.transcurridos>0 ? corriente/c.transcurridos : 0;
+
+  /* Lo que se queda si no se gasta un centavo más. Abonar a la tarjeta NO es
+     gasto: baja deuda, así que suma al patrimonio igual que dejar el dinero
+     quieto, y por eso no se resta aquí. */
+  const sinGastarMas = (base==='ciclo' ? entro-corriente : disponible) - comprometido;
+  const proyectado   = sinGastarMas - ritmo*c.diasRestantes;
+
+  /* La meta de ahorro del ciclo. Mientras no se fije una, se propone un tercio
+     del ingreso, que es una cifra con la que casi siempre se puede. */
+  const cfg=cicloCfg();
+  const metaFijada = num(cfg.meta)>0 ? num(cfg.meta) : 0;
+  const meta = metaFijada || (entro>0 ? Math.round(entro*0.3/10)*10 : 0);
+
+  /* El gasto diario que SÍ se puede mostrar: el que no toca la meta. Enseñar
+     "te quedan X por día" sobre todo el disponible convierte el sobrante en
+     permiso de gasto, que es lo contrario de ahorrar. */
+  const margen = Math.max(0, sinGastarMas - meta);
+  const porDia = c.diasRestantes>0 ? margen/c.diasRestantes : margen;
+
   return Object.assign({}, c, {entro, salio, corriente, ritmo, comprometido, porPagar,
-                               disponible, libre, porDia, base});
+                               disponible, libre, base, sinGastarMas, proyectado,
+                               meta, metaFijada:!!metaFijada, margen, porDia});
 }
 
 function renderCiclo(){
@@ -2034,35 +2074,100 @@ function renderCiclo(){
   if(!r){ card.classList.add('hide'); return; }
   card.classList.remove('hide');
 
-  const pct=Math.min(100,Math.round(r.transcurridos/r.diasTotal*100));
-  const col = r.libre<=0 ? 'var(--coral)' : (r.porDia<40 ? 'var(--gold)' : 'var(--teal)');
-  $('cicloTitulo').textContent = r.base==='ciclo' ? 'Libre de este pago' : 'Disponible en tus cuentas';
   $('cicloRango').textContent=diaMes(r.ini)+' → '+diaMes(r.fin);
   $('cicloFaltan').textContent = r.diasRestantes===0 ? 'último día'
     : (r.diasRestantes===1?'falta 1 día':'faltan '+r.diasRestantes+' días');
-  $('cicloBarra').style.width=pct+'%';
-  $('cicloLibre').textContent=Engine.format(r.libre);
+  $('cicloBarra').style.width=Math.min(100,Math.round(r.transcurridos/r.diasTotal*100))+'%';
+
+  /* El protagonista es lo que se va a quedar, no lo que se puede gastar. */
+  const cumple = r.meta>0 && r.proyectado>=r.meta;
+  const col = r.proyectado<=0 ? 'var(--coral)' : (cumple ? 'var(--teal)' : 'var(--gold)');
+  $('cicloTitulo').textContent = r.base==='ciclo'
+    ? (r.diasRestantes===0 ? 'Ahorraste en este ciclo' : 'Vas a ahorrar')
+    : 'Disponible en tus cuentas';
+  $('cicloLibre').textContent=Engine.format(Math.max(0,r.proyectado));
   $('cicloLibre').style.color=col;
-  $('cicloPorDia').innerHTML = r.libre<=0
-    ? 'No te queda margen en este ciclo.'
-    : (r.diasRestantes>0
-        ? '<b style="color:'+col+'">'+Engine.format(r.porDia)+' por día</b> si lo repartes hasta el '+diaMes(r.fin)+'.'
-        : 'Hoy cierra el ciclo.');
+
+  if(r.meta>0){
+    const pct=Math.max(0,Math.min(100,Math.round(r.proyectado/r.meta*100)));
+    $('cicloMetaBarra').parentElement.style.display='';
+    $('cicloMetaBarra').style.width=pct+'%';
+    $('cicloMetaBarra').style.background=cumple?'var(--teal)':'var(--gold)';
+    const dif=r.proyectado-r.meta;
+    $('cicloMeta').innerHTML = cumple
+      ? 'Tu meta era '+Engine.format(r.meta)+(dif>=1?' — la pasas por <b style="color:var(--teal)">'+Engine.format(dif)+'</b>.':' — la alcanzas justo.')
+      : 'Tu meta es '+Engine.format(r.meta)+' — te faltan <b style="color:var(--gold)">'+Engine.format(-dif)+'</b>.'
+        +(r.metaFijada?'':' <span class="muted">(sugerida)</span>');
+  }else{
+    $('cicloMetaBarra').parentElement.style.display='none';
+    $('cicloMeta').textContent='';
+  }
+
+  /* El margen diario se enseña como techo, nunca como presupuesto a repartir. */
+  if(r.diasRestantes<=0){
+    $('cicloPorDia').textContent='Hoy cierra el ciclo.';
+  }else if(r.margen<=0){
+    $('cicloPorDia').innerHTML='Para llegar a tu meta, de aquí al '+diaMes(r.fin)+' no deberías gastar más.';
+  }else{
+    $('cicloPorDia').innerHTML='Puedes gastar hasta <b>'+Engine.format(r.porDia)+' al día</b> sin bajar de la meta. '
+      +'Vas a <b>'+Engine.format(r.ritmo)+'</b>.';
+  }
 
   const piezas = r.base==='ciclo'
-    ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'salió <b>'+Engine.format(r.salio)+'</b>']
-    : ['Aún no registras el ingreso de este ciclo, así que esto mide el saldo de tus cuentas',
-       'has gastado <b>'+Engine.format(r.salio)+'</b>'];
-  if(r.comprometido>0){
-    piezas.push('y <b style="color:var(--gold)">'+Engine.format(r.comprometido)+'</b> ya tiene dueño ('
+    ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'gastaste <b>'+Engine.format(r.corriente)+'</b>']
+    : ['Aún no registras el ingreso de este ciclo, así que esto mide el saldo de tus cuentas'];
+  const aTarjeta=r.salio-r.corriente;
+  if(aTarjeta>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(aTarjeta)+'</b> a la tarjeta (eso también es ahorro)');
+  if(r.comprometido>0) piezas.push('<b style="color:var(--gold)">'+Engine.format(r.comprometido)+'</b> ya tiene dueño ('
       +r.porPagar.map(p=>esc(p.nombre)).join(', ')+')');
-  }
+  if(r.libre>0) piezas.push('te quedan <b>'+Engine.format(r.libre)+'</b> en efectivo');
   $('cicloDetalle').innerHTML=piezas.join(' · ')+'.';
 }
 function diaMes(iso){
   try{
     return new Date(iso+'T12:00:00').toLocaleDateString('es-GT',{day:'numeric',month:'short'});
   }catch(e){ return iso; }
+}
+
+function abrirMetaCiclo(){
+  const r=resumenCiclo(); if(!r) return;
+  const cfg=cicloCfg();
+  $('metaCicloMonto').value = num(cfg.meta)>0 ? num(cfg.meta) : (r.meta||0);
+  const base=r.entro>0?r.entro:0;
+  const opciones = base>0
+    ? [[0.2,'20%'],[0.3,'30%'],[0.4,'40%'],[0.5,'50%']].map(([p,t])=>({
+        v:Math.round(base*p/10)*10, t:t+' · '+Engine.format(Math.round(base*p/10)*10)}))
+    : [500,1000,1500,2000].map(v=>({v, t:Engine.format(v)}));
+  $('metaCicloChips').innerHTML=opciones.map(o=>
+    `<button type="button" class="chip" data-meta="${o.v}">${esc(o.t)}</button>`).join('');
+  $('metaCicloChips').querySelectorAll('[data-meta]').forEach(b=>{
+    b.onclick=()=>{ $('metaCicloMonto').value=b.dataset.meta; marcarMetaChip(); ayudaMetaCiclo(); hap(8); };
+  });
+  marcarMetaChip(); ayudaMetaCiclo();
+  openSheet('sheetMetaCiclo');
+}
+function marcarMetaChip(){
+  const v=$('metaCicloMonto').value;
+  $('metaCicloChips').querySelectorAll('[data-meta]').forEach(b=>b.classList.toggle('on',b.dataset.meta===String(num(v))));
+}
+function ayudaMetaCiclo(){
+  const r=resumenCiclo(); if(!r) return;
+  const meta=parseMonto($('metaCicloMonto').value);
+  const margen=Math.max(0,r.sinGastarMas-meta);
+  const porDia=r.diasRestantes>0?margen/r.diasRestantes:margen;
+  $('metaCicloAyuda').innerHTML = meta<=0
+    ? 'Sin meta, la app solo te muestra cuánto vas a ahorrar al ritmo que llevas.'
+    : (margen<=0
+        ? 'Con esa meta ya no te queda margen en este ciclo. Es alcanzable, pero apretado.'
+        : 'Con esa meta te quedan hasta <b>'+Engine.format(porDia)+' al día</b> por los '
+          +r.diasRestantes+' días que faltan. Hoy vas a '+Engine.format(r.ritmo)+' diarios.');
+}
+function guardarMetaCiclo(e){
+  e.preventDefault();
+  const v=parseMonto($('metaCicloMonto').value);
+  cicloCfg().meta = v>0 ? v : 0;
+  saveDB(); closeSheet('sheetMetaCiclo'); renderCiclo(); actualizarResumenNativo(); hap(12);
+  showToast(v>0?('Meta puesta en '+Engine.format(v)+' por pago'):'Meta quitada');
 }
 
 function renderProyeccionMes(){
@@ -3822,8 +3927,85 @@ function runAlertEngine(){
       pushNotify('Meta cumplida','Lograste tu plan "'+g.nombre+'"','meta:'+g.id,'🎉','metas'); }
   });
   alertasComparativas();
+  alertasAreaCaliente();
   autoReportes(true);
   saveDB(); updateBell(); if(pila.includes('sheetAlerts')) renderNotifPanel();
+}
+
+/* ---- Cuando un área se dispara -------------------------------------------
+   Los límites por categoría solo avisan a quien se tomó el trabajo de ponerlos,
+   y casi nadie los pone. Esto no necesita configuración: compara cada área
+   contra lo que esa misma persona suele gastar ahí, y mira aparte las rachas
+   —varias compras del mismo lugar en pocos días—, que es como se cuela el
+   gasto que de verdad mata el presupuesto: nunca en un solo cargo grande.  */
+function gastoCategoriaEntre(cat,ini,fin){
+  return DB.transacciones
+    .filter(t=>t.tipo==='gasto' && t.categoria===cat && t.fecha>=ini && t.fecha<=fin)
+    .reduce((a,t)=>a+num(t.monto),0);
+}
+
+function alertasAreaCaliente(){
+  const h=hoy();
+  const c=cicloActual();
+  const ini = c ? c.ini : fechaMenos(h,14);
+  const dias = Math.max(1, Math.round((new Date(h+'T12:00:00')-new Date(ini+'T12:00:00'))/86400000)+1);
+
+  /* 1. Racha: 3 o más compras del mismo sitio en 5 días. Se agrupan por TIPO de
+        comercio, no por categoría: cuatro compras en Steam repartidas entre
+        "GASTOS TC", "Multimedia" y "GUSTOS SOLO" son la misma costumbre, y por
+        categoría no se vería ninguna. */
+  const desde5=fechaMenos(h,4);
+  const grupos={};
+  DB.transacciones.forEach(t=>{
+    if(t.tipo!=='gasto' || t.fecha<desde5 || t.fecha>h) return;
+    const tipo=tipoComercio(t.descripcion);
+    const k = tipo ? 'tipo:'+tipo : 'cat:'+(t.categoria||'Sin categoría');
+    (grupos[k]=grupos[k]||[]).push(t);
+  });
+  Object.entries(grupos).forEach(([k,arr])=>{
+    if(arr.length<3) return;
+    const total=arr.reduce((a,t)=>a+num(t.monto),0);
+    if(total<100) return;                       // tres cafés no son una racha
+    const esTipo=k.startsWith('tipo:');
+    const nombre = esTipo ? nombreRacha(k.slice(5)) : k.slice(4);
+    const titulo = esTipo ? ('Varias compras en '+nombre) : ('Cuidado con '+nombre);
+    const clave='racha:'+k+':'+h.slice(0,7)+':'+Math.floor(total/100);
+    addAlert('comparativa',
+      `${arr.length} compras en ${nombre} en 5 días, ${Engine.format(total)} en total. Revisa si es algo puntual.`,
+      total>=300?'bad':'warn', clave);
+    pushNotify(titulo,
+      arr.length+' compras en 5 días · '+Engine.format(total),clave,'🔎','comparativas');
+  });
+
+  /* 2. Contra su propio promedio: el área va muy por encima de lo normal.
+        Solo tiene sentido si el historial cubre ENTERO el periodo anterior; si
+        no, lo que se registró primero parecería un gasto nuevo y la app
+        avisaría de cosas que siempre estuvieron ahí. */
+  const iniPrev=fechaMenos(ini,dias), finPrev=fechaMenos(ini,1);
+  let primero=null;
+  DB.transacciones.forEach(t=>{ if(t.tipo==='gasto' && (!primero||t.fecha<primero)) primero=t.fecha; });
+  if(!primero || primero>iniPrev) return;
+
+  DB.categorias.forEach(cat=>{
+    const ahora=gastoCategoriaEntre(cat.nombre,ini,h);
+    const antes=gastoCategoriaEntre(cat.nombre,iniPrev,finPrev);
+    if(ahora<150) return;                       // montos chicos no merecen aviso
+    if(antes<=0){
+      const clave='nueva:'+cat.id+':'+ini;
+      addAlert('comparativa',
+        `${cat.nombre} apareció este periodo con ${Engine.format(ahora)}. Antes no gastabas ahí.`,'warn',clave);
+      return;
+    }
+    const veces=ahora/antes;
+    if(veces<1.6) return;
+    const clave='sube:'+cat.id+':'+ini+':'+Math.round(veces*10);
+    const pct=Math.round((veces-1)*100);
+    addAlert('comparativa',
+      `${cat.nombre} va ${pct}% arriba del periodo pasado: ${Engine.format(ahora)} contra ${Engine.format(antes)}.`,
+      veces>=2.5?'bad':'warn', clave);
+    pushNotify(cat.nombre+' va '+pct+'% arriba',
+      Engine.format(ahora)+' contra '+Engine.format(antes)+' del periodo pasado',clave,'📈','comparativas');
+  });
 }
 /* ---------- Comparación reutilizable ---------- */
 function compararPeriodo(n,soloTC){
@@ -4589,6 +4771,7 @@ function wire(){
     const ok=e.target.closest('[data-pend-ok]');   if(ok) return registrarPendienteDirecto(ok.dataset.pendOk);
   };
   $('pendEditForm').onsubmit=guardarPendEdit;
+  $('pendMonto').oninput=()=>pintarAvisoArea($('pendCat').value);
   $('pendIcono').oninput=()=>{
     const p=colaPend.find(x=>x.id===$('pendEditId').value);
     if(p&&p.comercio) pintarMarcaPend(p.comercio);
@@ -4607,6 +4790,10 @@ function wire(){
   $('btnPegarRestaurar').onclick=restaurarPegado;
   $('pegarTexto').oninput=revisarPegado;
   $('btnWipe').onclick=limpiarTodo;
+  $('btnCicloMeta').onclick=abrirMetaCiclo;
+  $('metaCicloForm').onsubmit=guardarMetaCiclo;
+  $('metaCicloMonto').oninput=()=>{ marcarMetaChip(); ayudaMetaCiclo(); };
+  $('metaCicloCancelar').onclick=()=>closeSheet('sheetMetaCiclo');
   $('cicloActivo').onchange=guardarCicloAjustes;
   $('cicloDias').onchange=guardarCicloAjustes;
   $('cicloDias').onblur=guardarCicloAjustes;
@@ -4997,6 +5184,14 @@ function marcaComercioHTML(comercio,tam,forzar){
       display:grid;place-items:center;flex:none">${dentro}${badge}</div>`;
 }
 
+/* Para una racha el tipo se nombra en llano: "4 compras en una suscripción
+   digital" no se lee como lo que es. */
+const NOMBRE_RACHA = {gasolinera:'gasolineras',supermercado:'el súper',farmacia:'farmacias',
+  comida:'comida fuera',cafe:'cafeterías',streaming:'juegos y suscripciones',
+  telecom:'telefonía',transporte:'transporte',salud:'salud',ropa:'ropa',
+  tienda:'tiendas',seguro:'seguros'};
+function nombreRacha(t){ return NOMBRE_RACHA[t]||nombreTipo(t); }
+
 function nombreTipo(t){
   return ({gasolinera:'una gasolinera',supermercado:'un supermercado',farmacia:'una farmacia',
     comida:'un lugar de comida',cafe:'una cafetería',streaming:'una suscripción digital',
@@ -5341,14 +5536,42 @@ function pintarSugerenciaCat(comercio){
   caja.innerHTML='<div class="muted" style="font-size:11.5px;line-height:1.5;margin-bottom:7px">'+nota+'</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
     +opciones.map(c=>`<button type="button" class="catchip" data-cat="${esc(c)}">${icono(c)}${esc(c)}</button>`).join('')
-    +'</div>';
-  const marcar=()=>caja.querySelectorAll('.catchip').forEach(b=>
-    b.classList.toggle('on', b.dataset.cat===sel.value));
+    +'</div><div id="pendAviso" style="margin-top:9px"></div>';
+  const marcar=()=>{
+    caja.querySelectorAll('.catchip').forEach(b=>b.classList.toggle('on', b.dataset.cat===sel.value));
+    pintarAvisoArea(sel.value);
+  };
   caja.querySelectorAll('.catchip').forEach(b=>{
     b.onclick=()=>{ sel.value=b.dataset.cat; marcar(); hap(8); };
   });
   sel.onchange=marcar;
   marcar();
+}
+
+/* Decirlo ANTES de registrar vale más que decirlo después: el momento de
+   aprobar un cobro es el único en que todavía se puede dudar. */
+function pintarAvisoArea(cat){
+  const caja=$('pendAviso'); if(!caja) return;
+  caja.innerHTML='';
+  if(!cat) return;
+  const c=cicloActual(); if(!c) return;
+  const h=hoy();
+  const dias=Math.max(1,Math.round((new Date(h+'T12:00:00')-new Date(c.ini+'T12:00:00'))/86400000)+1);
+  const ahora=gastoCategoriaEntre(cat,c.ini,h);
+  const antes=gastoCategoriaEntre(cat,fechaMenos(c.ini,dias),fechaMenos(c.ini,1));
+  const nuevo=parseMonto($('pendMonto').value);
+  const total=ahora+nuevo;
+
+  let msg='';
+  if(antes>0 && total>=antes*1.6 && total>=150){
+    msg='Con este cobro, <b>'+esc(cat)+'</b> llega a '+Engine.format(total)
+       +' en este ciclo, contra '+Engine.format(antes)+' del anterior.';
+  }else if(ahora>=200){
+    msg='Llevas '+Engine.format(ahora)+' en <b>'+esc(cat)+'</b> este ciclo.';
+  }
+  if(!msg) return;
+  caja.innerHTML='<div class="card tight" style="border-color:rgba(255,196,107,.4);background:rgba(255,196,107,.08);'
+    +'font-size:11.5px;line-height:1.5">⚠️ '+msg+'</div>';
 }
 
 function guardarPendEdit(e){
@@ -5419,8 +5642,8 @@ function actualizarResumenNativo(){
   const c=resumenCiclo();
   const ciclo = c ? {
     cicloFin:c.fin, cicloDiasRestantes:c.diasRestantes, cicloTranscurridos:c.transcurridos,
-    cicloLibre:c.libre, cicloPorDia:c.porDia, cicloSalio:c.salio, cicloEntro:c.entro,
-    cicloRitmo: c.ritmo
+    cicloLibre:c.sinGastarMas, cicloPorDia:c.porDia, cicloSalio:c.salio, cicloEntro:c.entro,
+    cicloRitmo: c.ritmo, cicloMeta: c.meta
   } : {};
 
   try{

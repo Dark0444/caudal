@@ -228,11 +228,20 @@ public class Avisos {
             return "Te quedan " + moneda(libre) + " para " + diasTxt(faltan) + ".";
         }
 
+        double meta = r.optDouble("cicloMeta", 0);
         double cierre = libre - ritmo * faltan;
         String base = "A este ritmo (" + moneda(ritmo) + " al día) cierras ";
+
         if (cierre >= 1) {
-            return base + "con " + moneda(cierre) + " ahorrado."
-                    + (diaLimpio ? " Un día como hoy lo sube." : "");
+            String txt = base + "con " + moneda(cierre) + " ahorrado.";
+            if (meta > 0) {
+                txt += cierre >= meta
+                        ? " Tu meta era " + moneda(meta) + "."
+                        : " Te faltan " + moneda(meta - cierre) + " para tu meta.";
+            } else if (diaLimpio) {
+                txt += " Un día como hoy lo sube.";
+            }
+            return txt;
         }
         if (cierre > -1) return base + "justo en cero.";
 
