@@ -968,7 +968,6 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
       <input class="inp num" id="metaCicloMonto" type="number" step="10" min="0" inputmode="decimal"></label>
     <div class="muted" id="metaCicloAyuda" style="margin:-4px 0 14px;font-size:11.5px"></div>
     <button class="btn" type="submit">Guardar meta</button>
-    <button class="btn ghost" type="button" id="metaCicloCancelar" style="margin-top:9px">Cancelar</button>
   </form>
 </div>
 
@@ -4793,7 +4792,6 @@ function wire(){
   $('btnCicloMeta').onclick=abrirMetaCiclo;
   $('metaCicloForm').onsubmit=guardarMetaCiclo;
   $('metaCicloMonto').oninput=()=>{ marcarMetaChip(); ayudaMetaCiclo(); };
-  $('metaCicloCancelar').onclick=()=>closeSheet('sheetMetaCiclo');
   $('cicloActivo').onchange=guardarCicloAjustes;
   $('cicloDias').onchange=guardarCicloAjustes;
   $('cicloDias').onblur=guardarCicloAjustes;
