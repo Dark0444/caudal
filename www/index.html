@@ -931,6 +931,21 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   <p class="sub" id="pendSub">Lo que Caudal leyó de las notificaciones de tu banco y de la billetera.</p>
   <div id="pendAcceso" class="hide" style="margin-bottom:14px"></div>
   <div id="pendLista"></div>
+  <button class="btn ghost" type="button" id="btnAbrirLector" style="margin-top:14px">Revisar el lector</button>
+</div>
+
+<!-- Qué está viendo el lector de notificaciones, y qué apps vigila -->
+<div class="sheet" id="sheetLector">
+  <div class="grab"></div>
+  <h3>Lector de notificaciones</h3>
+  <p class="sub">Si un cobro no apareció, aquí se ve por qué: si el permiso está puesto, qué apps mandan avisos y qué hizo Caudal con los últimos.</p>
+  <div id="lectorCuerpo"></div>
+  <div class="btn-row" style="margin-top:14px">
+    <button class="btn ghost" type="button" id="btnCopiarDiag">Copiar diagnóstico</button>
+    <button class="btn ghost" type="button" id="btnReintentarLector">Reactivar lector</button>
+  </div>
+  <button class="btn danger" type="button" id="btnLimpiarDiag" style="margin-top:9px">Borrar el registro y volver a probar</button>
+  <div class="muted" style="margin-top:12px;font-size:11px;line-height:1.5">De las apps que no se vigilan solo se guarda el nombre, nunca el contenido de sus notificaciones.</div>
 </div>
 
 <!-- Editar un cobro detectado antes de registrarlo -->
@@ -4305,6 +4320,10 @@ function wire(){
   $('btnPegarRestaurar').onclick=restaurarPegado;
   $('pegarTexto').oninput=revisarPegado;
   $('btnWipe').onclick=limpiarTodo;
+  $('btnAbrirLector').onclick=abrirLector;
+  $('btnCopiarDiag').onclick=copiarDiagnostico;
+  $('btnReintentarLector').onclick=reactivarLector;
+  $('btnLimpiarDiag').onclick=limpiarDiagnostico;
   $('confirmOk').onclick=()=>resolverConfirm(true);
 
   // Seguridad (PIN)
@@ -4534,6 +4553,144 @@ function actualizarChipPendientes(){
 }
 
 function abrirPendientes(){ renderPendientes(); openSheet('sheetPendientes'); }
+
+/* ---- Diagnóstico del lector ----------------------------------------------
+   Los nombres de paquete de los bancos no se pueden adivinar, y cuando el
+   lector descarta un aviso no queda rastro visible. Esta pantalla muestra lo
+   que el servicio nativo sí sabe: permiso, apps que mandan avisos y qué pasó
+   con los últimos de las apps vigiladas. Desde aquí se marca a mano la app del
+   banco si no entró por la lista de fábrica. */
+let diagLector=null;
+
+async function abrirLector(){
+  openSheet('sheetLector');
+  await cargarLector();
+}
+
+async function cargarLector(){
+  const N=nativoCaudal(), cont=$('lectorCuerpo');
+  if(!N){
+    diagLector=null;
+    cont.innerHTML='<div class="empty"><b>Solo en la app instalada</b>El lector de notificaciones existe únicamente en el APK de Android.</div>';
+    return;
+  }
+  cont.innerHTML='<div class="muted" style="font-size:12px">Consultando…</div>';
+  try{ diagLector=await N.diagnostico(); }
+  catch(e){ cont.innerHTML='<div class="empty"><b>No se pudo consultar</b>Reinstala la app: esta pantalla llegó en una versión más nueva.</div>'; return; }
+  renderLector();
+}
+
+function renderLector(){
+  const d=diagLector, cont=$('lectorCuerpo');
+  if(!d) return;
+  const apps=(d.apps||[]).slice().sort((a,b)=>(b.avisos||0)-(a.avisos||0));
+  const reg=(d.registro||[]).slice().reverse();
+  const vigiladas=apps.filter(a=>a.permitida);
+  let h='';
+
+  h+=`<div class="card tight" style="margin-bottom:12px;border-color:${d.acceso?'rgba(45,212,191,.4)':'rgba(255,196,107,.45)'};background:${d.acceso?'rgba(45,212,191,.07)':'rgba(255,196,107,.08)'}">
+    <div style="font-weight:700;font-size:13px">${d.acceso?'✓ Permiso concedido':'⚠ Falta el permiso'}</div>
+    <div class="strat-intro" style="margin-top:6px">${d.acceso
+      ? 'Caudal puede leer las notificaciones. Si aun así no detecta tus cobros, revisa abajo si la app de tu banco está en la lista de vigiladas.'
+      : 'Sin el permiso de acceso a notificaciones el lector no recibe nada. Actívalo desde Cobros detectados.'}</div>
+  </div>`;
+
+  h+=`<div style="font-size:12px;font-weight:800;letter-spacing:.02em;margin:4px 2px 10px;text-transform:uppercase;opacity:.75">Apps que mandan avisos <span class="muted">(${apps.length})</span></div>`;
+  if(!apps.length){
+    h+=`<div class="empty"><b>Todavía nada</b>El lector no ha recibido ninguna notificación desde que se instaló esta versión. Deja que llegue cualquier aviso al teléfono y vuelve a entrar.</div>`;
+  }else{
+    if(!vigiladas.length){
+      h+=`<div class="muted" style="font-size:11.5px;margin:-4px 0 10px">Ninguna está vigilada todavía. Busca la de tu banco y márcala.</div>`;
+    }
+    h+=apps.map(a=>{
+      const cap=a.capturados||0;
+      return `<div class="card tight" style="margin-bottom:8px;border-color:${a.permitida?'rgba(45,212,191,.35)':'var(--line)'}">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px">${esc(a.nombre||a.paquete)}</div>
+            <div class="muted" style="font-size:10.5px;word-break:break-all">${esc(a.paquete)}</div>
+            <div class="muted" style="font-size:10.5px;margin-top:3px">${a.avisos||0} aviso(s)${cap?' · '+cap+' cobro(s) capturado(s)':''}</div>
+          </div>
+          <button class="btn ${a.permitida?'danger':''}" type="button" data-app="${esc(a.paquete)}" data-permitir="${a.permitida?'0':'1'}"
+            style="width:auto;padding:8px 13px;font-size:11.5px;flex:0 0 auto">${a.permitida?'Dejar de leer':'Leer esta'}</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  h+=`<div style="font-size:12px;font-weight:800;letter-spacing:.02em;margin:18px 2px 10px;text-transform:uppercase;opacity:.75">Últimos avisos de las apps vigiladas <span class="muted">(${reg.length})</span></div>`;
+  if(!reg.length){
+    h+=`<div class="empty"><b>Sin registro</b>Ninguna app vigilada ha mandado un aviso todavía.</div>`;
+  }else{
+    h+=reg.map(r=>{
+      const ok=/^capturado/.test(r.resultado||'');
+      return `<div class="card tight" style="margin-bottom:8px;border-color:${ok?'rgba(45,212,191,.35)':'rgba(255,107,129,.3)'}">
+        <div style="font-weight:700;font-size:12px;color:${ok?'#2DD4BF':'#FFC46B'}">${ok?'✓ ':'· '}${esc(r.resultado||'')}</div>
+        <div class="muted" style="font-size:10.5px;margin-top:4px">${esc(r.paquete||'')} · ${new Date(r.cuando||0).toLocaleString('es-GT')}</div>
+        <div style="font-size:11px;line-height:1.5;margin-top:6px;opacity:.85;word-break:break-word">${esc(r.texto||'')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  cont.innerHTML=h;
+  cont.querySelectorAll('[data-app]').forEach(b=>{
+    b.onclick=()=>permitirAppLector(b.dataset.app, b.dataset.permitir==='1');
+  });
+}
+
+async function permitirAppLector(paquete, permitir){
+  const N=nativoCaudal(); if(!N) return;
+  try{
+    await N.permitirApp({paquete, permitir});
+    showToast(permitir?'Caudal leerá los avisos de esa app':'Ya no se leerán sus avisos');
+    hap(12);
+    await cargarLector();
+    await sincronizarPendientes(true);
+    renderPendientes();
+  }catch(e){ showToast('No se pudo guardar'); }
+}
+
+function textoDiagnostico(){
+  const d=diagLector;
+  if(!d) return 'Sin datos del lector.';
+  const L=[];
+  L.push('Caudal · diagnóstico del lector');
+  L.push('Permiso de acceso a notificaciones: '+(d.acceso?'SÍ':'NO'));
+  L.push('');
+  L.push('Apps vistas:');
+  (d.apps||[]).forEach(a=>L.push('  '+(a.permitida?'[vigilada] ':'[     ] ')+a.paquete+' — '+(a.nombre||'')
+    +' · '+(a.avisos||0)+' avisos · '+(a.capturados||0)+' capturados'));
+  L.push('');
+  L.push('Cola de pendientes: '+((d.cola||[]).length));
+  L.push('');
+  L.push('Últimos avisos de apps vigiladas:');
+  (d.registro||[]).slice().reverse().forEach(r=>{
+    L.push('  ['+r.resultado+'] '+r.paquete);
+    L.push('    '+r.texto);
+  });
+  return L.join('\n');
+}
+
+async function copiarDiagnostico(){
+  const t=textoDiagnostico();
+  try{ await navigator.clipboard.writeText(t); showToast('Diagnóstico copiado'); }
+  catch(e){ showToast('No se pudo copiar'); }
+}
+
+async function reactivarLector(){
+  const N=nativoCaudal(); if(!N) return;
+  try{ await N.reactivarLector(); showToast('Lector reactivado'); }catch(e){}
+  await cargarLector();
+}
+
+async function limpiarDiagnostico(){
+  const N=nativoCaudal(); if(!N) return;
+  if(!await pedirConfirmacion('Borrar el registro',
+      'Se borra el rastro de avisos y las huellas, así el mismo cobro puede volver a detectarse. No toca tus movimientos.',
+      'Borrar')) return;
+  try{ await N.limpiarDiagnostico(); }catch(e){}
+  await reactivarLector();
+}
 
 function renderPendientes(){
   const N=nativoCaudal(), cont=$('pendLista'), acc=$('pendAcceso');

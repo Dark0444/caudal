@@ -92,6 +92,30 @@ public class CaudalPlugin extends Plugin {
         Context ctx = getContext();
         Avisos.crearCanales(ctx);
         ResumenReceiver.programarTodo(ctx);
+        reenlazarLector(ctx);
+    }
+
+    /**
+     * Al reinstalar el APK, Android deja el permiso de acceso a notificaciones
+     * concedido pero suelta el servicio, así que deja de recibir avisos sin que
+     * nada lo diga. Pedir el reenlace cada vez que arranca la app lo arregla sin
+     * que el usuario tenga que apagar y prender el permiso a mano.
+     */
+    private void reenlazarLector(Context ctx) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                android.service.notification.NotificationListenerService.requestRebind(
+                        new ComponentName(ctx, LectorNotificaciones.class));
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    @PluginMethod
+    public void reactivarLector(PluginCall call) {
+        reenlazarLector(getContext());
+        JSObject r = new JSObject();
+        r.put("acceso", accesoConcedido());
+        call.resolve(r);
     }
 
     /* ---------- Permiso de acceso a notificaciones ---------- */
@@ -197,6 +221,67 @@ public class CaudalPlugin extends Plugin {
         r.put("apps", Almacen.leerArreglo(getContext(), Almacen.VISTOS));
         r.put("config", Almacen.leerObjeto(getContext(), Almacen.CONFIG));
         call.resolve(r);
+    }
+
+    /**
+     * Todo lo que hace falta para ver por qué un cobro no entró: si el permiso
+     * está puesto, qué apps mandan avisos y qué pasó con las últimas de las apps
+     * vigiladas.
+     */
+    @PluginMethod
+    public void diagnostico(PluginCall call) {
+        Context ctx = getContext();
+        JSObject r = new JSObject();
+        r.put("acceso", accesoConcedido());
+        r.put("apps", Almacen.leerArreglo(ctx, Almacen.VISTOS));
+        r.put("config", Almacen.leerObjeto(ctx, Almacen.CONFIG));
+        r.put("registro", Almacen.leerArreglo(ctx, Almacen.DIAG));
+        r.put("cola", Almacen.leerArreglo(ctx, Almacen.COLA));
+        call.resolve(r);
+    }
+
+    /** { paquete, permitir: true|false } — vigilar o dejar de vigilar una app. */
+    @PluginMethod
+    public void permitirApp(PluginCall call) {
+        String paquete = call.getString("paquete", "");
+        boolean permitir = Boolean.TRUE.equals(call.getBoolean("permitir", true));
+        if (paquete.isEmpty()) { call.reject("Falta el paquete"); return; }
+
+        Context ctx = getContext();
+        JSONObject cfg = Almacen.leerObjeto(ctx, Almacen.CONFIG);
+        try {
+            JSONArray apps = sinPaquete(cfg.optJSONArray("apps"), paquete);
+            JSONArray bloq = sinPaquete(cfg.optJSONArray("bloqueadas"), paquete);
+            if (permitir) apps.put(paquete); else bloq.put(paquete);
+            cfg.put("apps", apps);
+            cfg.put("bloqueadas", bloq);
+            Almacen.escribir(ctx, Almacen.CONFIG, cfg.toString());
+        } catch (Exception e) {
+            call.reject("No se pudo guardar la lista de apps", e);
+            return;
+        }
+        reenlazarLector(ctx);
+        call.resolve();
+    }
+
+    private JSONArray sinPaquete(JSONArray origen, String paquete) {
+        JSONArray salida = new JSONArray();
+        if (origen == null) return salida;
+        for (int i = 0; i < origen.length(); i++) {
+            String p = origen.optString(i);
+            if (!p.isEmpty() && !p.equalsIgnoreCase(paquete)) salida.put(p);
+        }
+        return salida;
+    }
+
+    /** Borra el rastro de diagnóstico y las huellas, para poder volver a probar. */
+    @PluginMethod
+    public void limpiarDiagnostico(PluginCall call) {
+        Context ctx = getContext();
+        Almacen.escribir(ctx, Almacen.DIAG, "[]");
+        Almacen.escribir(ctx, Almacen.HUELLAS, "[]");
+        Almacen.escribir(ctx, Almacen.VISTOS, "[]");
+        call.resolve();
     }
 
     /**

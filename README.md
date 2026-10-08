@@ -67,7 +67,17 @@ avisan del mismo pago, solo se registra una vez. Cada cuenta lleva sus últimos
 cuatro dígitos para saber a cuál cargar el cobro, y la app aprende qué categoría
 corresponde a cada comercio la primera vez que se la indicas.
 
-Solo se leen las apps de la lista blanca. De las demás no se guarda contenido.
+Se leen las apps de la lista de fábrica, las que el usuario marca, y las que llevan
+nombre de banco o billetera (`promerica`, `banco`, `wallet`…), porque los nombres de
+paquete reales no son adivinables. De las demás solo queda anotado su nombre, nunca
+el contenido.
+
+En **Cobros detectados › Revisar el lector** se ve si el permiso está puesto, qué apps
+mandan avisos —con el paquete real, para marcar la del banco con un toque— y qué hizo
+Caudal con los últimos avisos de las apps vigiladas. Al arrancar, la app le pide a
+Android que vuelva a enlazar el servicio y este repasa lo que ya está en la barra de
+notificaciones, porque reinstalar el APK deja el permiso puesto pero suelta el
+servicio en silencio.
 
 ## Compilar
 

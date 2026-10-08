@@ -25,6 +25,7 @@ public class Almacen {
     public static final String RESUMEN     = "resumen";
     public static final String VISTOS      = "apps_vistas";
     public static final String HUELLAS     = "huellas";   // para no registrar dos veces el mismo cobro
+    public static final String DIAG        = "diagnostico";
 
     private static SharedPreferences prefs(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -84,21 +85,56 @@ public class Almacen {
         return false;
     }
 
-    /** Lleva nota de qué apps han mandado algo con pinta de cobro, para la pantalla de ajustes. */
-    public static void registrarAppVista(Context ctx, String paquete, String etiqueta) {
+    /**
+     * Lleva nota de qué apps mandan notificaciones, para la pantalla de ajustes.
+     * Solo el nombre del paquete, su etiqueta y un contador: nunca el contenido.
+     * Así, cuando el banco no aparezca en la lista blanca, se puede ver cómo se
+     * llama de verdad su app y marcarla a mano, en vez de adivinar el paquete.
+     */
+    public static void registrarAppVista(Context ctx, String paquete, String etiqueta,
+                                         boolean permitida, boolean capturado) {
         JSONArray vistas = leerArreglo(ctx, VISTOS);
-        for (int i = 0; i < vistas.length(); i++) {
-            if (paquete.equals(vistas.optJSONObject(i) != null
-                    ? vistas.optJSONObject(i).optString("paquete") : null)) return;
-        }
         try {
+            for (int i = 0; i < vistas.length(); i++) {
+                JSONObject o = vistas.optJSONObject(i);
+                if (o != null && paquete.equals(o.optString("paquete"))) {
+                    o.put("avisos", o.optInt("avisos") + 1);
+                    o.put("visto", System.currentTimeMillis());
+                    o.put("permitida", permitida);
+                    if (capturado) o.put("capturados", o.optInt("capturados") + 1);
+                    escribirArreglo(ctx, VISTOS, vistas);
+                    return;
+                }
+            }
             JSONObject o = new JSONObject();
             o.put("paquete", paquete);
             o.put("nombre", etiqueta);
             o.put("visto", System.currentTimeMillis());
+            o.put("avisos", 1);
+            o.put("capturados", capturado ? 1 : 0);
+            o.put("permitida", permitida);
             vistas.put(o);
-            while (vistas.length() > 40) vistas.remove(0);
+            while (vistas.length() > 60) vistas.remove(0);
             escribirArreglo(ctx, VISTOS, vistas);
+        } catch (JSONException ignored) { }
+    }
+
+    /**
+     * Rastro de las últimas notificaciones de apps vigiladas y qué se hizo con
+     * ellas. Es la única forma de saber por qué un cobro no se registró sin
+     * tener el teléfono enchufado a una computadora.
+     */
+    public static void anotarDiagnostico(Context ctx, String paquete, String texto, String resultado) {
+        try {
+            JSONArray d = leerArreglo(ctx, DIAG);
+            JSONObject o = new JSONObject();
+            o.put("cuando", System.currentTimeMillis());
+            o.put("paquete", paquete);
+            o.put("texto", texto == null ? "" : (texto.length() > 400 ? texto.substring(0, 400) : texto));
+            o.put("resultado", resultado);
+            d.put(o);
+            while (d.length() > 12) d.remove(0);
+            escribirArreglo(ctx, DIAG, d);
         } catch (JSONException ignored) { }
     }
 }

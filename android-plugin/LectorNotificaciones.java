@@ -19,13 +19,13 @@ import java.util.Locale;
  * clase no se ejecuta nunca.
  *
  * Qué mira y qué no:
- *   · Solo apps de la lista blanca (banco y billetera). Lo demás se descarta
- *     antes de leer su contenido.
- *   · De las apps permitidas, solo el texto que tiene pinta de movimiento de
+ *   · De cualquier app se anota solo el nombre del paquete, su etiqueta y un
+ *     contador, para que en Ajustes se pueda ver cómo se llama de verdad la app
+ *     del banco y marcarla. El contenido de las apps que no se vigilan nunca se
+ *     guarda ni se analiza.
+ *   · De las apps vigiladas (lista de fábrica, nombre con pinta de banco, o
+ *     marcadas por el usuario) se analiza el texto buscando un movimiento de
  *     dinero. Si no trae monto, no se guarda nada.
- *   · De las demás apps únicamente se anota el nombre del paquete, y solo
- *     cuando el texto parece un cobro, para poder ofrecértelas en los ajustes.
- *     Su contenido no se guarda.
  */
 public class LectorNotificaciones extends NotificationListenerService {
 
@@ -39,9 +39,39 @@ public class LectorNotificaciones extends NotificationListenerService {
             "com.bancoindustrial.bienlinea"
     };
 
+    /**
+     * Los nombres de paquete de los bancos no son adivinables, así que además de
+     * la lista de arriba vale cualquier app cuyo paquete o etiqueta suene a banco
+     * o a billetera. Esto se decide con el nombre, nunca con el contenido.
+     */
+    private static final String[] PISTAS = {
+            "promerica", "banco", "bancar", "bank", "banrural", "bantrab",
+            "industrial", "bienlinea", "bi en linea", "interbanco", "bam",
+            "gyt", "g&t", "continental", "azteca", "ficohsa", "visa",
+            "mastercard", "wallet", "googlepay", "google pay", "gpay",
+            "billetera", "tarjeta"
+    };
+
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         try { procesar(sbn); } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Cuando Android enlaza el servicio —al conceder el permiso, al reinstalar la
+     * app o al reiniciar el teléfono— repasamos lo que ya está en la barra. Sin
+     * esto, los avisos que llegaron mientras el servicio estaba desenlazado se
+     * perderían para siempre, que es justo lo que pasa al actualizar el APK.
+     */
+    @Override
+    public void onListenerConnected() {
+        try {
+            StatusBarNotification[] activas = getActiveNotifications();
+            if (activas == null) return;
+            for (StatusBarNotification sbn : activas) {
+                try { procesar(sbn); } catch (Throwable ignored) { }
+            }
+        } catch (Throwable ignored) { }
     }
 
     private void procesar(StatusBarNotification sbn) {
@@ -50,67 +80,87 @@ public class LectorNotificaciones extends NotificationListenerService {
         String paquete = sbn.getPackageName();
         if (paquete == null || paquete.equals(getPackageName())) return;   // nunca a nosotros mismos
 
+        String etiqueta = etiquetaApp(ctx, paquete);
+        boolean permitida = estaPermitida(ctx, paquete, etiqueta);
+
+        /* De las apps que no vigilamos no se lee el contenido: solo queda
+           constancia de que existen, para poder marcarlas desde Ajustes. */
+        if (!permitida) {
+            Almacen.registrarAppVista(ctx, paquete, etiqueta, false, false);
+            return;
+        }
+
         Bundle extras = sbn.getNotification().extras;
-        if (extras == null) return;
+        if (extras == null) { Almacen.registrarAppVista(ctx, paquete, etiqueta, true, false); return; }
 
         String titulo = textoDe(extras, Notification.EXTRA_TITLE);
         String cuerpo = textoDe(extras, Notification.EXTRA_BIG_TEXT);
         if (cuerpo.isEmpty()) cuerpo = textoDe(extras, Notification.EXTRA_TEXT);
+        if (cuerpo.isEmpty()) cuerpo = textoDe(extras, Notification.EXTRA_SUMMARY_TEXT);
+        if (cuerpo.isEmpty()) cuerpo = lineasDe(extras);
         String completo = (titulo + " " + cuerpo).trim();
-        if (completo.length() < 8) return;
 
-        boolean permitida = estaPermitida(ctx, paquete);
-
-        /* De las apps que no vigilamos solo anotamos que existen, y únicamente si
-           su texto parece un cobro. Así los ajustes pueden sugerírtelas sin que
-           la app guarde el contenido de notificaciones ajenas. */
-        if (!permitida) {
-            if (pareceCobro(completo)) {
-                Almacen.registrarAppVista(ctx, paquete, etiquetaApp(ctx, paquete));
-            }
+        if (completo.length() < 8) {
+            Almacen.registrarAppVista(ctx, paquete, etiqueta, true, false);
+            Almacen.anotarDiagnostico(ctx, paquete, completo, "texto vacío o muy corto");
             return;
         }
 
         JSONObject cobro = Analizador.analizar(titulo, cuerpo, paquete, sbn.getPostTime());
-        if (cobro == null) return;
+        if (cobro == null) {
+            Almacen.registrarAppVista(ctx, paquete, etiqueta, true, false);
+            Almacen.anotarDiagnostico(ctx, paquete, completo, "sin monto reconocible");
+            return;
+        }
 
-        /* Mismo cobro avisado dos veces (billetera + banco): se ignora el segundo. */
-        if (Almacen.yaVisto(ctx, cobro.optString("huella"))) return;
+        /* Mismo cobro avisado dos veces (billetera + banco, o repaso al enlazar
+           el servicio): se ignora el segundo. */
+        if (Almacen.yaVisto(ctx, cobro.optString("huella"))) {
+            Almacen.registrarAppVista(ctx, paquete, etiqueta, true, false);
+            Almacen.anotarDiagnostico(ctx, paquete, completo, "repetido, ya estaba registrado");
+            return;
+        }
 
         try {
             cobro.put("id", "p" + System.currentTimeMillis()
                     + Integer.toString((int) (Math.random() * 999)));
             cobro.put("estado", "pendiente");
-            cobro.put("app", etiquetaApp(ctx, paquete));
+            cobro.put("app", etiqueta);
         } catch (Exception ignored) { }
 
         Almacen.encolar(ctx, cobro);
+        Almacen.registrarAppVista(ctx, paquete, etiqueta, true, true);
+        Almacen.anotarDiagnostico(ctx, paquete, completo,
+                "capturado: " + cobro.optString("tipo") + " " + cobro.optDouble("monto", 0)
+                        + " tarjeta " + cobro.optString("tarjeta"));
         Avisos.avisarCobroDetectado(ctx, cobro);
     }
 
-    private boolean estaPermitida(Context ctx, String paquete) {
+    private boolean estaPermitida(Context ctx, String paquete, String etiqueta) {
         JSONObject cfg = Almacen.leerObjeto(ctx, Almacen.CONFIG);
+
+        /* Lo que el usuario desmarcó a mano gana sobre todo lo demás. */
+        JSONArray fuera = cfg.optJSONArray("bloqueadas");
+        if (fuera != null) {
+            for (int i = 0; i < fuera.length(); i++) {
+                if (paquete.equalsIgnoreCase(fuera.optString(i))) return false;
+            }
+        }
+
         JSONArray lista = cfg.optJSONArray("apps");
-        if (lista != null && lista.length() > 0) {
+        if (lista != null) {
             for (int i = 0; i < lista.length(); i++) {
                 if (paquete.equalsIgnoreCase(lista.optString(i))) return true;
             }
-            /* La lista del usuario manda, pero las de omisión siguen valiendo
-               para que no se le apague el banco por error al configurar. */
         }
-        for (String p : POR_OMISION) if (paquete.equalsIgnoreCase(p)) return true;
-        return false;
-    }
 
-    /** Heurística muy conservadora: una cifra con decimales junto a una marca de dinero. */
-    private boolean pareceCobro(String t) {
-        String s = t.toLowerCase(Locale.ROOT);
-        boolean marca = s.contains("q") || s.contains("gtq") || s.contains("$")
-                || s.contains("usd") || s.contains("quetzal");
-        boolean cifra = t.matches("(?s).*\\d+[.,]\\d{2}.*");
-        boolean verbo = s.contains("compra") || s.contains("consumo") || s.contains("pago")
-                || s.contains("cobro") || s.contains("transacc") || s.contains("debit");
-        return marca && cifra && verbo;
+        for (String p : POR_OMISION) if (paquete.equalsIgnoreCase(p)) return true;
+
+        /* Y cualquier app cuyo nombre suene a banco o billetera. */
+        String aguja = (paquete + " " + (etiqueta == null ? "" : etiqueta)).toLowerCase(Locale.ROOT);
+        for (String pista : PISTAS) if (aguja.contains(pista)) return true;
+
+        return false;
     }
 
     private String etiquetaApp(Context ctx, String paquete) {
@@ -123,7 +173,28 @@ public class LectorNotificaciones extends NotificationListenerService {
     }
 
     private String textoDe(Bundle extras, String clave) {
-        CharSequence cs = extras.getCharSequence(clave);
-        return cs == null ? "" : cs.toString().trim();
+        try {
+            CharSequence cs = extras.getCharSequence(clave);
+            return cs == null ? "" : cs.toString().trim();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** Algunos bancos mandan el detalle en el estilo de bandeja, no en EXTRA_TEXT. */
+    private String lineasDe(Bundle extras) {
+        try {
+            CharSequence[] lineas = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES);
+            if (lineas == null || lineas.length == 0) return "";
+            StringBuilder sb = new StringBuilder();
+            for (CharSequence c : lineas) {
+                if (c == null) continue;
+                if (sb.length() > 0) sb.append(' ');
+                sb.append(c.toString().trim());
+            }
+            return sb.toString().trim();
+        } catch (Throwable t) {
+            return "";
+        }
     }
 }
