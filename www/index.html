@@ -847,6 +847,11 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <label class="f"><span>Nombre</span><input class="inp" id="catNombre" type="text" required placeholder="Ej. Supermercado"></label>
     <label class="f"><span>Ícono</span><div class="presets" id="catIconos"></div></label>
     <label class="f"><span>Límite mensual (Q) — 0 = sin límite</span><input class="inp num" id="catLimite" type="number" step="0.01" value="0" inputmode="decimal"></label>
+    <div class="f">
+      <div class="minirow" style="padding:0"><span>⚙️ Es un gasto fijo<br>
+        <span class="muted" style="font-size:11px">Gasolina del trabajo, recibos, cuotas. Sale igual cada mes, así que no cuenta para tu ritmo diario ni te avisa por gastar de más. Si cargas gasolina el lunes para toda la semana, no aparece como un pico.</span></span>
+        <input type="checkbox" id="catFijo" style="width:20px;height:20px;accent-color:var(--violet)"></div>
+    </div>
     <button class="btn" type="submit">Guardar categoría</button>
     <button class="btn danger hide" type="button" id="catDelete" style="margin-top:9px">Eliminar categoría</button>
   </form>
@@ -2086,9 +2091,47 @@ function diasOficina(){
 function esDiaOficina(iso){
   return diasOficina().includes(new Date(iso+'T12:00:00').getDay());
 }
+/* Hay gastos que no son ritmo: la gasolina del trabajo sale sí o sí, y a veces
+   se carga el lunes para toda la semana. Metida en el promedio diario inventa
+   un pico que no es un hábito, deja el viernes en cero y hace que la app regañe
+   por un gasto obligatorio. Se tratan como los recibos: aparte. */
+function esCategoriaFija(nombre){
+  const c=DB.categorias.find(x=>x.nombre===nombre);
+  return !!(c && c.fijo);
+}
 function gastoCorrienteDe(iso){
   return DB.transacciones.reduce((a,t)=>
-    (t.tipo==='gasto' && !Engine.esGastoTC(t) && t.fecha===iso) ? a+num(t.monto) : a, 0);
+    (t.tipo==='gasto' && !Engine.esGastoTC(t) && t.fecha===iso && !esCategoriaFija(t.categoria))
+      ? a+num(t.monto) : a, 0);
+}
+
+/** Lo que suele costar un ciclo en categorías fijas, y cuánto falta en este. */
+function fijosDelCiclo(ini,hasta,diasTotal){
+  const fijas=DB.categorias.filter(c=>c.fijo);
+  if(!fijas.length) return {esperado:0, gastado:0, pendiente:0, nombres:[]};
+
+  /* Base: lo gastado en esas categorías por día, en una ventana amplia. */
+  let primero=null;
+  DB.transacciones.forEach(t=>{ if(t.tipo==='gasto' && (!primero||t.fecha<primero)) primero=t.fecha; });
+  const finV=hasta, iniV=(primero && primero>fechaMenos(finV,59)) ? primero : fechaMenos(finV,59);
+  const dias=Math.max(1,Math.round((new Date(finV+'T12:00:00')-new Date(iniV+'T12:00:00'))/86400000)+1);
+
+  let total=0;
+  DB.transacciones.forEach(t=>{
+    if(t.tipo!=='gasto' || !esCategoriaFija(t.categoria)) return;
+    if(t.fecha<iniV || t.fecha>finV) return;
+    total+=num(t.monto);
+  });
+  const esperado=(total/dias)*diasTotal;
+
+  let gastado=0;
+  DB.transacciones.forEach(t=>{
+    if(t.tipo!=='gasto' || !esCategoriaFija(t.categoria)) return;
+    if(t.fecha<ini || t.fecha>hasta) return;
+    gastado+=num(t.monto);
+  });
+  return {esperado, gastado, pendiente:Math.max(0,esperado-gastado),
+          nombres:fijas.map(c=>c.nombre)};
 }
 /** Promedio de gasto corriente en días de oficina y en el resto, con ventana
     amplia para que cada grupo tenga suficientes días. */
@@ -2170,7 +2213,7 @@ function resumenCiclo(){
   const c=cicloActual(); if(!c) return null;
   const h=hoy();
   const dentro=t=>t.fecha>=c.ini && t.fecha<=h;
-  let entro=0, salio=0, corriente=0;
+  let entro=0, salio=0, corriente=0, fijo=0;
   DB.transacciones.forEach(t=>{
     if(!dentro(t)) return;
     const v=num(t.monto);
@@ -2179,7 +2222,10 @@ function resumenCiclo(){
        Pero el abono es un movimiento grande de una sola vez, no un hábito: se
        descuenta de lo que queda y se deja FUERA del ritmo diario, porque si no
        la proyección anuncia un cierre en rojo que nunca va a pasar. */
-    else if(t.tipo==='gasto' && !Engine.esGastoTC(t)){ salio+=v; corriente+=v; }
+    else if(t.tipo==='gasto' && !Engine.esGastoTC(t)){
+      salio+=v;
+      if(esCategoriaFija(t.categoria)) fijo+=v; else corriente+=v;
+    }
     else if(t.tipo==='tarjeta') salio+=v;
     else if(t.tipo==='ahorro') salio+=v;
     /* Mandar dinero a la bóveda lo saca de lo gastable igual que abonar a la
@@ -2219,12 +2265,15 @@ function resumenCiclo(){
      quedan dos lunes o ninguno, y eso cambia el resultado por cientos. */
   const ritmos = ritmosPorTipoDia(h);
   const manana = fechaMas(h,1);
-  const restante = c.diasRestantes>0 ? gastoEsperado(manana, c.fin, ritmos) : 0;
+  const fijos = fijosDelCiclo(c.ini, h, c.diasTotal);
+  const restante = c.diasRestantes>0
+    ? gastoEsperado(manana, c.fin, ritmos) + fijos.pendiente
+    : 0;
 
   /* Lo que se queda si no se gasta un centavo más. Abonar a la tarjeta NO es
      gasto: baja deuda, así que suma al patrimonio igual que dejar el dinero
      quieto, y por eso no se resta aquí. */
-  const sinGastarMas = (base==='ciclo' ? entro-corriente : disponible) - comprometido;
+  const sinGastarMas = (base==='ciclo' ? entro-corriente-fijo : disponible) - comprometido;
   const proyectado   = sinGastarMas - restante;
 
   /* La meta de ahorro del ciclo. Mientras no se fije una, se propone un tercio
@@ -2249,7 +2298,7 @@ function resumenCiclo(){
   return Object.assign({}, c, {entro, salio, corriente, ritmo, comprometido, porPagar,
                                disponible, libre, base, sinGastarMas, proyectado,
                                meta, metaFijada:!!metaFijada, margen, porDia, apartable,
-                               ritmos, restante});
+                               ritmos, restante, fijo, fijos});
 }
 
 function renderCiclo(){
@@ -2311,7 +2360,8 @@ function renderCiclo(){
   const piezas = r.base==='ciclo'
     ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'gastaste <b>'+Engine.format(r.corriente)+'</b>']
     : ['Aún no registras el ingreso de este ciclo, así que esto mide el saldo de tus cuentas'];
-  const aTarjeta=r.salio-r.corriente;
+  if(r.fijo>0.5) piezas.push('<b>'+Engine.format(r.fijo)+'</b> en fijos ('+r.fijos.nombres.join(', ')+')');
+  const aTarjeta=r.salio-r.corriente-r.fijo;
   if(aTarjeta>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(aTarjeta)+'</b> a la tarjeta (eso también es ahorro)');
   if(r.comprometido>0) piezas.push('<b style="color:var(--gold)">'+Engine.format(r.comprometido)+'</b> ya tiene dueño ('
       +r.porPagar.map(p=>esc(p.nombre)).join(', ')+')');
@@ -3204,6 +3254,7 @@ function openCatModal(id){
   $('catTitle').textContent=c?'Editar categoría':'Nueva categoría';
   $('catId').value=c?c.id:''; $('catNombre').value=c?c.nombre:'';
   $('catLimite').value=c?num(c.limite):0;
+  $('catFijo').checked=!!(c&&c.fijo);
   renderIconPicker('catIconos',ICONOS_CAT,c?c.icono:'🛒');
   $('catDelete').classList.toggle('hide',!c);
   openSheet('sheetCat');
@@ -3212,7 +3263,7 @@ function guardarCategoria(e){
   e.preventDefault();
   const id=$('catId').value;
   const p={nombre:$('catNombre').value.trim(),limite:parseMonto($('catLimite').value),
-    icono:pick('#catIconos .on','i','🛒')};
+    icono:pick('#catIconos .on','i','🛒'), fijo:$('catFijo').checked};
   if(!p.nombre){ showToast('Ponle nombre a la categoría'); return; }
   if(nombreDuplicado(DB.categorias,'nombre',p.nombre,id)){ showToast('Ya tienes una categoría llamada "'+p.nombre+'"'); return; }
   if(id){ p.id=id; postAction('editCat',p); showToast('Categoría actualizada'); }
@@ -4159,6 +4210,8 @@ function alertasAreaCaliente(){
   });
   Object.entries(grupos).forEach(([k,arr])=>{
     if(arr.length<3) return;
+    /* Un fijo que se repite no es una racha: es el recibo de siempre. */
+    if(arr.every(t=>esCategoriaFija(t.categoria))) return;
     const total=arr.reduce((a,t)=>a+num(t.monto),0);
     if(total<100) return;                       // tres cafés no son una racha
     const esTipo=k.startsWith('tipo:');
@@ -4182,6 +4235,7 @@ function alertasAreaCaliente(){
   if(!primero || primero>iniPrev) return;
 
   DB.categorias.forEach(cat=>{
+    if(cat.fijo) return;                        // los fijos suben y bajan solos
     const ahora=gastoCategoriaEntre(cat.nombre,ini,h);
     const antes=gastoCategoriaEntre(cat.nombre,iniPrev,finPrev);
     if(ahora<150) return;                       // montos chicos no merecen aviso
@@ -5769,7 +5823,7 @@ function pintarSugerenciaCat(comercio){
 function pintarAvisoArea(cat){
   const caja=$('pendAviso'); if(!caja) return;
   caja.innerHTML='';
-  if(!cat) return;
+  if(!cat || esCategoriaFija(cat)) return;
   const c=cicloActual(); if(!c) return;
   const h=hoy();
   const dias=Math.max(1,Math.round((new Date(h+'T12:00:00')-new Date(c.ini+'T12:00:00'))/86400000)+1);
