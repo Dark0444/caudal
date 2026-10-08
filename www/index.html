@@ -512,9 +512,11 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <!-- ================= TABLERO ================= -->
     <section class="view on" id="view-tablero">
       <div class="hero">
-        <div class="lbl">Patrimonio total<button class="hint" id="patHint" data-hint-title="Patrimonio total" data-hint="Suma de tus cuentas y planes de ahorro.">?</button></div>
+        <div class="lbl"><span id="heroLbl">Patrimonio total</span><button class="hint" id="patHint" data-hint-title="Lo que ves aquí" data-hint="Cuando tienes una cuenta marcada como bóveda, el número grande es tu dinero disponible: el de las cuentas de uso diario, sin la bóveda. Ese es el que sirve para decidir si puedes gastar algo. El patrimonio total, que sí la incluye, aparece debajo en pequeño y lo revelas con un toque.">?</button></div>
         <div class="big num" id="patrimonio">Q0.00</div>
         <div class="sub"><span id="heroDelta" class="delta up">—</span><span id="heroNote"></span></div>
+        <button type="button" id="heroPatrimonio" class="muted hide"
+          style="font-size:11.5px;margin-top:7px;text-align:left;display:block"></button>
         <svg id="spark" viewBox="0 0 300 52" preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
 
@@ -537,7 +539,10 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
         </div>
         <div class="muted" id="cicloPorDia" style="font-size:12px;margin-top:10px"></div>
         <div class="muted" id="cicloDetalle" style="font-size:11.5px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line);line-height:1.6"></div>
-        <button class="btn ghost" type="button" id="btnCicloMeta" style="margin-top:12px;padding:10px;font-size:12.5px">Cambiar mi meta de ahorro</button>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn ghost" type="button" id="btnCicloMeta" style="margin-top:0;padding:10px;font-size:12.5px">Mi meta</button>
+          <button class="btn hide" type="button" id="btnCicloApartar" style="margin-top:0;padding:10px;font-size:12.5px">🔒 Apartar</button>
+        </div>
       </div>
 
       <div class="card tight hide" id="proyCard" style="display:flex;gap:11px;align-items:flex-start;margin-top:-4px">
@@ -790,6 +795,11 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <label class="f" style="margin-bottom:4px"><span>Últimos 4 dígitos de la tarjeta</span>
       <input class="inp num" id="bancoLast4" type="text" inputmode="numeric" maxlength="4" placeholder="Ej. 8240"></label>
     <div class="muted" style="margin-bottom:14px;font-size:11.5px">Con esto Caudal sabe a qué cuenta mandar los cobros que lee de las notificaciones de tu banco. Déjalo vacío si esta cuenta no tiene tarjeta.</div>
+    <div class="f hide" id="wrapBoveda">
+      <div class="minirow" style="padding:0"><span>🔒 Es mi bóveda de ahorro<br>
+        <span class="muted" style="font-size:11px">Su saldo sale tapado y no cuenta como dinero disponible. Lo que no ves, no lo gastas.</span></span>
+        <input type="checkbox" id="bancoBoveda" style="width:20px;height:20px;accent-color:var(--violet)"></div>
+    </div>
     <label class="f" id="wrapSaldo"><span>Saldo inicial (Q)</span><input class="inp num" id="bancoSaldo" type="number" step="0.01" value="0" inputmode="decimal"></label>
     <div class="grid2 hide" id="wrapCredito">
       <label class="f"><span>Deuda actual (Q)</span><input class="inp num" id="bancoDeuda" type="number" step="0.01" value="0" inputmode="decimal"></label>
@@ -1414,6 +1424,16 @@ const Engine={
   deudaTC(){ return DB.bancos.filter(b=>b.tipo==='credito').reduce((a,b)=>a+Engine.bancoValor(b),0); },
   limiteTC(){ return DB.bancos.filter(b=>b.tipo==='credito').reduce((a,b)=>a+num(b.limite),0); },
   liquidoTotal(){ return DB.bancos.filter(b=>b.tipo!=='credito').reduce((a,b)=>a+Engine.bancoValor(b),0); },
+  /* Una bóveda es dinero que ya se decidió no gastar. Sigue siendo patrimonio,
+     pero no debe aparecer en ningún número con el que se decide un gasto: ver
+     que "hay" lo convierte en disponible aunque no lo sea. */
+  esBoveda(b){ return !!b.boveda && b.tipo!=='credito'; },
+  enBoveda(){ return DB.bancos.filter(Engine.esBoveda).reduce((a,b)=>a+Engine.bancoValor(b),0); },
+  hayBoveda(){ return DB.bancos.some(Engine.esBoveda); },
+  disponibleTotal(){
+    return DB.bancos.filter(b=>b.tipo!=='credito' && !Engine.esBoveda(b))
+                    .reduce((a,b)=>a+Engine.bancoValor(b),0);
+  },
   enPlanes(){ return DB.metas.reduce((a,m)=>a+num(m.actual),0); },
   // La tarjeta de crédito es independiente: su deuda consume su propio límite,
   // no el patrimonio ni el presupuesto general del mes.
@@ -1668,19 +1688,41 @@ function actualizarSelectorMeses(){
 }
 
 /* ---------- 6. Bancos ---------- */
+/* El saldo de la bóveda se revela con un toque y se vuelve a tapar solo: la
+   idea no es esconderlo para siempre, es que no esté a la vista cada vez que
+   se abre la app. */
+let bovedaVisible=false, bovedaTimer=null;
+function alternarBoveda(){
+  bovedaVisible=!bovedaVisible;
+  clearTimeout(bovedaTimer);
+  if(bovedaVisible) bovedaTimer=setTimeout(()=>{ bovedaVisible=false; refrescarBoveda(); }, 10000);
+  refrescarBoveda(); hap(8);
+}
+function refrescarBoveda(){
+  renderBancos();
+  const bp=$('heroPatrimonio');
+  if(bp && !bp.classList.contains('hide')){
+    bp.innerHTML = bovedaVisible
+      ? '🔒 En bóveda '+Engine.format(Engine.enBoveda())+' · patrimonio total '+Engine.format(Engine.patrimonioTotal())
+      : '🔒 Bóveda guardada · toca para ver tu patrimonio total';
+  }
+}
 function renderBancos(){
   const row=$('banksRow');
   const cards=DB.bancos.map(b=>{
     const v=Engine.bancoValor(b), cr=b.tipo==='credito';
+    const bov=Engine.esBoveda(b), tapado=bov && !bovedaVisible;
     return `<div class="bank" data-b="${b.id}">
       <div class="glow" style="background:linear-gradient(145deg,${b.color},${b.color}44)"></div>
       <div class="in" style="color:#fff">
-        <div class="ico">${b.icono||'🏦'}</div>
+        <div class="ico">${bov?'🔒':(b.icono||'🏦')}</div>
         <div class="nm">${esc(b.nombre)}</div>
-        <div class="ty">${TIPOS_BANCO[b.tipo]||b.tipo}${cr?' · deuda':''}</div>
-        <div class="val num">${Engine.format(v)}</div>
+        <div class="ty">${bov?'Bóveda · no se toca':(TIPOS_BANCO[b.tipo]||b.tipo)+(cr?' · deuda':'')}</div>
+        <div class="val num" ${tapado?'data-ver="1" style="letter-spacing:.06em"':''}>${tapado?'Q ••••••':Engine.format(v)}</div>
         <div class="acts">
-          <button data-a="${cr?'abonar':'ingreso'}" data-b="${b.id}">${cr?'Abonar':'+ Ingreso'}</button>
+          ${bov
+            ? `<button data-a="apartar" data-b="${b.id}">Apartar</button>`
+            : `<button data-a="${cr?'abonar':'ingreso'}" data-b="${b.id}">${cr?'Abonar':'+ Ingreso'}</button>`}
           <button data-a="movs" data-b="${b.id}">Movs</button>
           <button data-a="edit" data-b="${b.id}" style="flex:0 0 34px">✎</button>
         </div>
@@ -1740,6 +1782,7 @@ function toggleBancoTipoFields(){
   const cr=$('bancoTipo').value==='credito';
   $('wrapSaldo').classList.toggle('hide',cr);
   $('wrapCredito').classList.toggle('hide',!cr);
+  $('wrapBoveda').classList.toggle('hide',cr);   // una tarjeta no puede ser bóveda
 }
 function openBancoModal(id){
   const b=id?DB.bancos.find(x=>x.id===id):null;
@@ -1749,6 +1792,7 @@ function openBancoModal(id){
   $('bancoTipo').value=b?b.tipo:'monetaria';
   $('bancoSaldo').value=b?num(b.saldoInicial):0;
   $('bancoLast4').value=b?(b.last4||''):'';
+  $('bancoBoveda').checked=!!(b&&b.boveda);
   $('bancoDeuda').value=b?num(b.deudaInicial):0;
   $('bancoLimite').value=b?num(b.limite):0;
   renderIconPicker('bancoIconos',ICONOS_BANCO,b?b.icono:'🏦');
@@ -1767,7 +1811,8 @@ function guardarBanco(e){
     last4:String($('bancoLast4').value||'').replace(/\D/g,'').slice(0,4),
     saldoInicial:parseMonto($('bancoSaldo').value),
     deudaInicial:parseMonto($('bancoDeuda').value),
-    limite:parseMonto($('bancoLimite').value)
+    limite:parseMonto($('bancoLimite').value),
+    boveda: $('bancoTipo').value!=='credito' && $('bancoBoveda').checked
   };
   if(!p.nombre){ showToast('Ponle nombre a la cuenta'); return; }
   if(nombreDuplicado(DB.bancos,'nombre',p.nombre,id)){ showToast('Ya tienes una cuenta llamada "'+p.nombre+'"'); return; }
@@ -1795,9 +1840,46 @@ function openTransferBancoModal(){
 }
 function renderTransferBancoHint(){
   const b=DB.bancos.find(x=>x.id===$('trFrom').value);
-  $('transferHint').textContent = b ? 'Disponible en '+b.nombre+': '+Engine.format(Engine.bancoValor(b))
-                                    : 'Mueve dinero sin registrarlo como gasto.';
+  const d=DB.bancos.find(x=>x.id===$('trTo').value);
+  const h=$('transferHint');
+  if(d && Engine.esBoveda(d)){
+    h.innerHTML='🔒 Va a tu bóveda. Ese dinero deja de contar como disponible.';
+    return;
+  }
+  if(b && Engine.esBoveda(b)){
+    h.innerHTML='⚠️ Estás sacando de tu bóveda. Es tu ahorro: hazlo solo si de verdad lo necesitas.';
+    return;
+  }
+  h.textContent = b ? 'Disponible en '+b.nombre+': '+Engine.format(Engine.bancoValor(b))
+                    : 'Mueve dinero sin registrarlo como gasto.';
 }
+/* Apartar a la bóveda desde el tablero, con el monto que falta para la meta
+   ya puesto: el ahorro tiene que ser más fácil que el gasto, no al revés. */
+function apartarABoveda(destino){
+  const bov = DB.bancos.find(b=>b.id===destino && Engine.esBoveda(b))
+           || DB.bancos.find(Engine.esBoveda);
+  if(!bov){ showToast('Primero marca una cuenta como bóveda'); return; }
+  const origen = DB.bancos.find(b=>b.tipo!=='credito' && !Engine.esBoveda(b)
+                                   && Engine.bancoValor(b)>0);
+  if(!origen){ showToast('No hay saldo en tus cuentas de uso diario'); return; }
+
+  const r=resumenCiclo();
+  let sug=0;
+  if(r && r.meta>0){
+    const yaEnBoveda=Engine.enBoveda();
+    sug=Math.max(0, Math.min(r.libre, r.meta));
+  }else if(r){ sug=Math.max(0, r.libre*0.3); }
+  sug=Math.round(sug/10)*10;
+
+  poblarSelectsBanco();
+  $('trFecha').value=hoy();
+  $('trFrom').value=origen.id;
+  $('trTo').value=bov.id;
+  $('trMonto').value=sug>0?sug.toFixed(2):'';
+  renderTransferBancoHint();
+  openSheet('sheetTransfer');
+}
+
 function guardarTransferBanco(e){
   e.preventDefault();
   const from=$('trFrom').value, to=$('trTo').value, monto=parseMonto($('trMonto').value);
@@ -1809,11 +1891,24 @@ function guardarTransferBanco(e){
   closeSheet('sheetTransfer'); showToast('Transferencia registrada');
 }
 function poblarSelectsBanco(){
-  const todos=DB.bancos, liq=DB.bancos.filter(b=>b.tipo!=='credito'), tarjetas=DB.bancos.filter(b=>b.tipo==='credito');
-  const opts=(arr,vacio)=> (vacio?`<option value="">${vacio}</option>`:'')+arr.map(b=>`<option value="${b.id}">${esc(b.nombre)}</option>`).join('');
-  ['txBanco','trFrom','trTo','obPagoBanco','movBanco','closeMetaBanco','splitBanco'].forEach(id=>{
+  const tarjetas=DB.bancos.filter(b=>b.tipo==='credito');
+  /* La bóveda no se ofrece para pagar nada. Si aparece en la lista de "con qué
+     cuenta", deja de ser bóveda: el dinero vuelve a estar a un toque. Solo se
+     puede sacar a propósito, desde Transferir. */
+  const gastables = DB.bancos.filter(b=>!Engine.esBoveda(b));
+  const liq = DB.bancos.filter(b=>b.tipo!=='credito' && !Engine.esBoveda(b));
+  const conBoveda = DB.bancos.filter(b=>b.tipo!=='credito');
+  const opts=(arr,vacio)=> (vacio?`<option value="">${vacio}</option>`:'')
+    + arr.map(b=>`<option value="${b.id}">${Engine.esBoveda(b)?'🔒 ':''}${esc(b.nombre)}</option>`).join('');
+  const fuente={
+    txBanco:gastables, obPagoBanco:gastables, splitBanco:gastables,
+    movBanco:liq, closeMetaBanco:liq,
+    /* Transferir sí las ve: es la única vía para meter o sacar de la bóveda. */
+    trFrom:conBoveda, trTo:conBoveda
+  };
+  Object.keys(fuente).forEach(id=>{
     const el=$(id); if(!el) return; const prev=el.value;
-    el.innerHTML=opts((id==='txBanco'||id==='obPagoBanco'||id==='splitBanco')?todos:liq,'Elige una cuenta');
+    el.innerHTML=opts(fuente[id],'Elige una cuenta');
     if(prev) el.value=prev;
   });
   $('txTarjeta').innerHTML=opts(tarjetas,'Sin tarjeta');
@@ -1823,7 +1918,19 @@ function poblarSelectsBanco(){
 /* ---------- 7. Tablero ---------- */
 function renderDashboard(){
   const t=Engine.recalculate(mesSel);
-  animateCount($('patrimonio'),Engine.patrimonioTotal(),true);
+  /* Con una bóveda marcada, el número grande deja de ser el patrimonio y pasa a
+     ser lo disponible: ver el total completo cada vez que se abre la app es
+     justo lo que hace que el ahorro se sienta gastable. */
+  const hayBov=Engine.hayBoveda();
+  animateCount($('patrimonio'), hayBov?Engine.disponibleTotal():Engine.patrimonioTotal(), true);
+  $('heroLbl').textContent = hayBov ? 'Disponible para gastar' : 'Patrimonio total';
+  const bp=$('heroPatrimonio');
+  bp.classList.toggle('hide',!hayBov);
+  if(hayBov){
+    bp.innerHTML = bovedaVisible
+      ? '🔒 En bóveda '+Engine.format(Engine.enBoveda())+' · patrimonio total '+Engine.format(Engine.patrimonioTotal())
+      : '🔒 Bóveda guardada · toca para ver tu patrimonio total';
+  }
   const d=$('heroDelta');
   /* Quien cobra el 15 y el 28 no vive por mes calendario: medir el flujo del 1
      al 31 lo pinta en rojo justo los días en que vive del sueldo anterior. */
@@ -1842,20 +1949,26 @@ function renderDashboard(){
   animateCount($('mTar'),t.tarjeta,true);
   $('mNet').className='v num '+(t.neto>=0?'pos':'neg');
 
-  const hs=Engine.healthScore(t), arc=$('ringArc'), C=2*Math.PI*41;
+  /* La salud se mide sobre el ciclo cuando lo hay: por mes calendario, del 1 al
+     14 sale "gastaste el 6333% de lo que ingresaste" porque el sueldo entró el
+     28 y cuenta en el mes pasado. El número era correcto y la lectura, falsa. */
+  const tSalud = rc ? {ingresos:rc.entro, gastos:rc.corriente,
+                       tarjeta:rc.salio-rc.corriente, ahorros:0, retiros:0, neto:0} : t;
+  const hs=Engine.healthScore(tSalud), arc=$('ringArc'), C=2*Math.PI*41;
+  const periodo = rc ? 'en este ciclo' : 'este mes';
   if(hs===null){
     arc.style.strokeDashoffset=C; $('hsNum').textContent='—';
     $('hsTitle').textContent='Salud financiera';
-    $('hsMsg').textContent='Registra tu primer movimiento del mes para calcularla.';
+    $('hsMsg').textContent='Registra tu primer movimiento para calcularla.';
   }else{
     arc.style.strokeDashoffset=C-(C*hs/100);
     arc.setAttribute('stroke',hs>=70?'var(--teal)':hs>=40?'var(--gold)':'var(--coral)');
     $('hsNum').textContent=hs;
     $('hsTitle').textContent = hs>=80?'Vas excelente' : hs>=60?'Vas bien' : hs>=40?'Cuida el ritmo' : 'Gastando de más';
-    const pct = t.ingresos ? Math.round(((t.gastos+t.tarjeta)/t.ingresos)*100) : 0;
-    $('hsMsg').textContent = t.ingresos
-      ? 'Llevas gastado el '+pct+'% de lo que ingresaste este mes.'
-      : 'Este mes hay salidas sin ingresos registrados.';
+    const pct = tSalud.ingresos ? Math.round(((tSalud.gastos+tSalud.tarjeta)/tSalud.ingresos)*100) : 0;
+    $('hsMsg').textContent = tSalud.ingresos
+      ? 'Llevas gastado el '+pct+'% de lo que te entró '+periodo+'.'
+      : 'Hay salidas sin ingresos registrados '+periodo+'.';
   }
   const st=Engine.ahorroStreak();
   $('streak').textContent = st>0 ? '🔥 '+st+(st===1?' mes ahorrando':' meses seguidos ahorrando') : '🌱 Aún sin racha de ahorro';
@@ -2013,6 +2126,9 @@ function resumenCiclo(){
     else if(t.tipo==='gasto' && !Engine.esGastoTC(t)){ salio+=v; corriente+=v; }
     else if(t.tipo==='tarjeta') salio+=v;
     else if(t.tipo==='ahorro') salio+=v;
+    /* Mandar dinero a la bóveda lo saca de lo gastable igual que abonar a la
+       tarjeta: sale del efectivo, pero no es gasto — sigue siendo tuyo. */
+    else if(t.tipo==='transfer' && Engine.esBoveda(DB.bancos.find(x=>x.id===t.bancoDestinoId)||{})) salio+=v;
   });
 
   /* Lo que ya tiene dueño: obligaciones que vencen de hoy al final del ciclo. */
@@ -2038,7 +2154,7 @@ function resumenCiclo(){
      hay en las cuentas: sumar los ahorros daría un margen que en realidad no se
      piensa gastar. Si el ingreso del ciclo todavía no está registrado, se cae
      al saldo líquido para no mostrar un número sin sentido. */
-  const disponible=Engine.liquidoTotal();
+  const disponible=Engine.disponibleTotal();
   const base = entro>0 ? 'ciclo' : 'saldo';
   const bruto = base==='ciclo' ? entro-salio : disponible;
   const libre = bruto - comprometido;
@@ -2048,6 +2164,7 @@ function resumenCiclo(){
      gasto: baja deuda, así que suma al patrimonio igual que dejar el dinero
      quieto, y por eso no se resta aquí. */
   const sinGastarMas = (base==='ciclo' ? entro-corriente : disponible) - comprometido;
+  /* Lo que ya se mandó a la bóveda en este ciclo es ahorro hecho, no gasto. */
   const proyectado   = sinGastarMas - ritmo*c.diasRestantes;
 
   /* La meta de ahorro del ciclo. Mientras no se fije una, se propone un tercio
@@ -2111,6 +2228,8 @@ function renderCiclo(){
     $('cicloPorDia').innerHTML='Puedes gastar hasta <b>'+Engine.format(r.porDia)+' al día</b> sin bajar de la meta. '
       +'Vas a <b>'+Engine.format(r.ritmo)+'</b>.';
   }
+
+  $('btnCicloApartar').classList.toggle('hide', !Engine.hayBoveda() || r.libre<=0);
 
   const piezas = r.base==='ciclo'
     ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'gastaste <b>'+Engine.format(r.corriente)+'</b>']
@@ -4591,10 +4710,15 @@ function wire(){
       if(a==='movs') return verMovimientosBanco(id);
       if(a==='ingreso'){ openModal('ingreso'); setTimeout(()=>{$('txBanco').value=id;},50); return; }
       if(a==='abonar') return abonarDeuda(id);
+      if(a==='apartar') return apartarABoveda(id);
     }
+    /* Tocar el saldo tapado lo revela un momento, sin salir del tablero. */
+    if(e.target.closest('[data-ver]')){ e.stopPropagation(); return alternarBoveda(); }
     const card=e.target.closest('.bank'); if(card) verMovimientosBanco(card.dataset.b);
   };
+  $('heroPatrimonio').onclick=alternarBoveda;
   $('btnTransfer').onclick=openTransferBancoModal;
+  $('trTo').onchange=renderTransferBancoHint;
   $('bancoForm').onsubmit=guardarBanco;
   $('bancoTipo').onchange=toggleBancoTipoFields;
   $('bancoIconos').onclick=e=>{ const b=e.target.closest('[data-i]'); if(!b) return;
@@ -4790,6 +4914,7 @@ function wire(){
   $('pegarTexto').oninput=revisarPegado;
   $('btnWipe').onclick=limpiarTodo;
   $('btnCicloMeta').onclick=abrirMetaCiclo;
+  $('btnCicloApartar').onclick=()=>apartarABoveda();
   $('metaCicloForm').onsubmit=guardarMetaCiclo;
   $('metaCicloMonto').oninput=()=>{ marcarMetaChip(); ayudaMetaCiclo(); };
   $('cicloActivo').onchange=guardarCicloAjustes;
