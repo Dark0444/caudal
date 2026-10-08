@@ -387,7 +387,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 .presets button{padding:11px 4px;border-radius:15px;background:var(--surface);border:1px solid var(--stroke);font-size:10.5px;font-weight:700;line-height:1.3}
 .presets button em{display:block;font-style:normal;font-size:21px;margin-bottom:3px}
 .presets button.on{border-color:var(--violet);background:var(--violet-soft)}
-.presets.scroll{max-height:208px;overflow-y:auto;padding:2px;scrollbar-width:thin}
+.presets.scroll{max-height:206px;overflow-y:auto;overscroll-behavior:contain;padding:2px 2px 0;scrollbar-width:thin}
 .icono-libre{margin-top:9px}
 .icono-libre input{font-size:13px;padding:10px 12px}
 
@@ -518,6 +518,23 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
         <svg id="spark" viewBox="0 0 300 52" preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
 
+      <div class="card hide" id="cicloCard" style="margin-top:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:16px">🗓️</span>
+          <b style="font-size:13px;flex:1">Ciclo <span id="cicloRango"></span></b>
+          <span class="muted" id="cicloFaltan" style="font-size:11.5px"></span>
+          <button class="hint" id="cicloHint" data-hint-title="Tu ciclo de pago"
+            data-hint="El mes del calendario no sirve si cobras a mitad y a fin de mes: del 1 al 14 vives del sueldo anterior y todo se ve en rojo sin razón. Esto mide de pago a pago. «Libre» es lo que tienes en tus cuentas menos las obligaciones que aún vencen dentro del ciclo. Los cambios de día de pago se ajustan en Ajustes.">?</button>
+        </div>
+        <div style="height:5px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-bottom:13px">
+          <div id="cicloBarra" style="height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--teal));transition:width .8s cubic-bezier(.22,.7,.3,1)"></div>
+        </div>
+        <div class="muted" id="cicloTitulo" style="font-size:11.5px">Libre de este pago</div>
+        <b class="num" id="cicloLibre" style="font-size:30px;display:block;letter-spacing:-.03em;line-height:1.15">Q0</b>
+        <div class="muted" id="cicloPorDia" style="font-size:12.5px;margin-top:4px"></div>
+        <div class="muted" id="cicloDetalle" style="font-size:11.5px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line);line-height:1.6"></div>
+      </div>
+
       <div class="card tight hide" id="proyCard" style="display:flex;gap:11px;align-items:flex-start;margin-top:-4px">
         <div style="font-size:19px">🔮</div>
         <div style="flex:1;min-width:0">
@@ -525,6 +542,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           <div class="muted" id="proyTxt" style="margin-top:2px;font-size:12px"></div>
         </div>
       </div>
+
 
       <div class="sec-title"><h2>Mis cuentas</h2><button id="btnTransfer">Transferir</button></div>
       <div class="banks" id="banksRow"></div>
@@ -1076,6 +1094,14 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <div class="minirow"><span>Categorías</span><b class="num" id="stCats">0</b></div>
     <div class="minirow"><span>Obligaciones</span><b class="num" id="stObs">0</b></div>
     <div class="minirow"><span>Planes de ahorro</span><b class="num" id="stMetas">0</b></div>
+  </div>
+
+  <div class="sec-title" style="margin:0 2px 8px"><h2>Días de cobro<button class="hint" data-hint-title="Días de cobro" data-hint="Si cobras a mitad y a fin de mes, el mes del calendario no te sirve: del 1 al 14 vives del sueldo anterior y todo se ve en rojo sin razón. Con estos días la app arma tu ciclo de pago a pago y calcula cuánto te queda libre y cuánto puedes gastar por día. Escríbelos separados por coma; un 30 en febrero se corre al último día del mes.">?</button></h2></div>
+  <div class="card tight" style="margin-bottom:14px">
+    <div class="minirow"><span>Usar mi ciclo de pago</span><input type="checkbox" id="cicloActivo" style="width:20px;height:20px;accent-color:var(--violet)"></div>
+    <label class="f" style="margin:10px 0 0"><span>Días del mes en que te pagan</span>
+      <input class="inp" id="cicloDias" type="text" inputmode="numeric" placeholder="15, 28"></label>
+    <div class="muted" id="cicloAyuda" style="margin-top:8px;font-size:11.5px"></div>
   </div>
 
   <div class="sec-title" style="margin:0 2px 8px"><h2>Respaldo automático<button class="hint" id="respaldoHint" data-hint-title="Respaldo automático" data-hint="Como la app no guarda tus datos en ningún servidor, esta es tu copia de seguridad real: un Excel que se descarga solo a tu teléfono o computadora cada cierto tiempo. Cada archivo lleva la fecha y hora en el nombre, así que vas acumulando versiones. Si algo sale mal, entra a 'Restaurar desde Excel' y elige el archivo que quieras recuperar.">?</button></h2></div>
@@ -1657,7 +1683,10 @@ function renderBancoColorSwatches(sel){
 function renderIconPicker(cont,lista,sel){
   const c=$(cont);
   const todos = (sel && lista.indexOf(sel)<0) ? [sel].concat(lista) : lista;
-  c.classList.toggle('scroll', todos.length>20);
+  /* Más de tres filas y la rejilla desfila el formulario entero hacia abajo:
+     a partir de ahí se queda a tres filas con la cuarta asomando, que es la
+     señal de que hay más para deslizar. */
+  c.classList.toggle('scroll', todos.length>12);
   c.innerHTML=todos.map(i=>`<button type="button" data-i="${i}" class="${i===sel?'on':''}"><em>${i}</em></button>`).join('');
 
   /* El campo va FUERA del <label>: dentro, tocar un botón de la rejilla
@@ -1777,9 +1806,15 @@ function renderDashboard(){
   const t=Engine.recalculate(mesSel);
   animateCount($('patrimonio'),Engine.patrimonioTotal(),true);
   const d=$('heroDelta');
-  d.className='delta '+(t.neto>=0?'up':'down');
-  d.textContent=(t.neto>=0?'+':'')+Engine.format(t.neto);
-  $('heroNote').textContent='de flujo en '+nombreMes(mesSel);
+  /* Quien cobra el 15 y el 28 no vive por mes calendario: medir el flujo del 1
+     al 31 lo pinta en rojo justo los días en que vive del sueldo anterior. */
+  const rc=(mesSel===mesActualSistema())?resumenCiclo():null;
+  const flujo = rc ? rc.entro-rc.salio : t.neto;
+  d.className='delta '+(flujo>=0?'up':'down');
+  d.textContent=(flujo>=0?'+':'')+Engine.format(flujo);
+  $('heroNote').textContent = rc
+    ? 'en tu ciclo desde el '+diaMes(rc.ini)
+    : 'de flujo en '+nombreMes(mesSel);
   animateCount($('mIng'),t.ingresos,true);
   animateCount($('mGas'),t.gastos,true);
   animateCount($('mNet'),t.neto,true);
@@ -1823,7 +1858,7 @@ function renderDashboard(){
     'Tienes '+DB.metas.length+' plan(es) con '+Engine.format(Engine.enPlanes())+' acumulado. Si eliminas un plan, Nébula te pregunta a qué cuenta devolver el dinero.');
 
   renderSpark(); updateChart(); renderQuickChips(); renderObligacionesEstado(mesSel); renderTCCard();
-  renderPatrimonioHist(); renderIngresosGastos(); renderProyeccionMes();
+  renderPatrimonioHist(); renderIngresosGastos(); renderProyeccionMes(); renderCiclo();
 }
 /* ---------- Patrimonio recalculado a una fecha pasada (para la tendencia histórica) ---------- */
 function patrimonioEnFecha(fechaLimite){
@@ -1893,9 +1928,144 @@ function renderIngresosGastos(){
   svg.innerHTML=bars+labels;
 }
 /* ---------- Proyección de cierre del mes en curso ---------- */
+/* ---- Ciclo de pago a pago ---------------------------------------------------
+   El mes del calendario no es el mes de quien cobra el 15 y el 28: del 1 al 14
+   se vive del sueldo que entró el 28 del mes pasado, así que esos días el mes
+   se ve en rojo aunque todo vaya bien, y se pone verde el 15 por arte de magia.
+   Esto mide lo que de verdad importa a diario: desde el último pago hasta el
+   siguiente, cuánto queda libre y cuánto toca por día.                      */
+function cicloCfg(){
+  DB.config.ciclo = Object.assign({activo:true, dias:[15,28]}, DB.config.ciclo||{});
+  const d=(DB.config.ciclo.dias||[]).map(n=>Math.min(Math.max(Number(n)||1,1),31));
+  DB.config.ciclo.dias=[...new Set(d)].sort((a,b)=>a-b);
+  return DB.config.ciclo;
+}
+function fechaISO(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+/* El día de pago se recorta al último del mes: un cobro "el 28" en un febrero
+   de 28 días sigue cayendo el 28, pero uno "el 30" cae el 28. */
+function pagoEn(anio,mes,dia){
+  return new Date(anio,mes-1,Math.min(dia,diasEnMesDe(anio,mes)),12,0,0,0);
+}
+function diasEnMesDe(a,m){ return new Date(a,m,0).getDate(); }
+
+/** @return {ini,fin,diasTotal,diasRestantes,transcurridos} o null si no aplica. */
+function cicloActual(){
+  const cfg=cicloCfg();
+  if(!cfg.activo || !cfg.dias.length) return null;
+  const hoyD=new Date(); hoyD.setHours(12,0,0,0);
+  const a=hoyD.getFullYear(), m=hoyD.getMonth()+1;
+
+  /* Los pagos del mes pasado, este y el siguiente, en orden: así el ciclo que
+     cruza el cambio de mes se arma sin casos especiales. */
+  const marcas=[];
+  [-1,0,1].forEach(off=>{
+    const d=new Date(a,m-1+off,1,12,0,0,0);
+    cfg.dias.forEach(dia=>marcas.push(pagoEn(d.getFullYear(),d.getMonth()+1,dia)));
+  });
+  marcas.sort((x,y)=>x-y);
+
+  let ini=null,sig=null;
+  for(let i=0;i<marcas.length;i++){
+    if(marcas[i]<=hoyD){ ini=marcas[i]; sig=marcas[i+1]||null; }
+  }
+  if(!ini||!sig) return null;
+  const fin=new Date(sig.getTime()-86400000);
+  const total=Math.round((fin-ini)/86400000)+1;
+  const transcurridos=Math.round((hoyD-ini)/86400000)+1;
+  return {ini:fechaISO(ini), fin:fechaISO(fin), diasTotal:total,
+          transcurridos, diasRestantes:Math.max(0,total-transcurridos)};
+}
+
+function resumenCiclo(){
+  const c=cicloActual(); if(!c) return null;
+  const h=hoy();
+  const dentro=t=>t.fecha>=c.ini && t.fecha<=h;
+  let entro=0, salio=0;
+  DB.transacciones.forEach(t=>{
+    if(!dentro(t)) return;
+    const v=num(t.monto);
+    if(t.tipo==='ingreso') entro+=v;
+    /* El consumo con tarjeta no sale de la cuenta hoy; el abono a la tarjeta sí. */
+    else if(t.tipo==='gasto' && !Engine.esGastoTC(t)) salio+=v;
+    else if(t.tipo==='tarjeta') salio+=v;
+  });
+
+  /* Lo que ya tiene dueño: obligaciones que vencen de hoy al final del ciclo. */
+  let comprometido=0; const porPagar=[];
+  DB.obligaciones.forEach(ob=>{
+    const venc = ob.repite===false ? (ob.fecha||'') : fechaVencimiento(ob, mesDe(c.fin));
+    let v2=venc;
+    if(ob.repite!==false){
+      /* Un ciclo puede cruzar dos meses: hay que mirar el vencimiento de ambos. */
+      const cand=[fechaVencimiento(ob,mesDe(c.ini)), fechaVencimiento(ob,mesDe(c.fin))];
+      v2=cand.find(f=>f>=h && f<=c.fin) || cand.find(f=>f>=c.ini && f<=c.fin) || venc;
+    }
+    if(!v2 || v2<h || v2>c.fin) return;
+    const est=estadoObligacion(ob, mesDe(v2));
+    if(est.estado==='pagada') return;
+    const falta=Math.max(0, num(ob.monto)-est.pagado);
+    if(falta<=0) return;
+    comprometido+=falta;
+    porPagar.push({nombre:ob.nombre, monto:falta, venc:v2});
+  });
+
+  /* "Libre" es lo que queda DEL SUELDO de este ciclo, no todo lo que hay en las
+     cuentas: sumar los ahorros daría un margen diario que en realidad no se
+     piensa gastar. Si el ingreso del ciclo todavía no está registrado, se cae
+     al saldo líquido para no mostrar un número sin sentido. */
+  const disponible=Engine.liquidoTotal();
+  const base = entro>0 ? 'ciclo' : 'saldo';
+  const libre = (base==='ciclo' ? entro-salio : disponible) - comprometido;
+  const porDia = c.diasRestantes>0 ? libre/c.diasRestantes : libre;
+  return Object.assign({}, c, {entro, salio, comprometido, porPagar, disponible, libre, porDia, base});
+}
+
+function renderCiclo(){
+  const card=$('cicloCard'); if(!card) return;
+  const r = (mesSel===mesActualSistema()) ? resumenCiclo() : null;
+  if(!r){ card.classList.add('hide'); return; }
+  card.classList.remove('hide');
+
+  const pct=Math.min(100,Math.round(r.transcurridos/r.diasTotal*100));
+  const col = r.libre<=0 ? 'var(--coral)' : (r.porDia<40 ? 'var(--gold)' : 'var(--teal)');
+  $('cicloTitulo').textContent = r.base==='ciclo' ? 'Libre de este pago' : 'Disponible en tus cuentas';
+  $('cicloRango').textContent=diaMes(r.ini)+' → '+diaMes(r.fin);
+  $('cicloFaltan').textContent = r.diasRestantes===0 ? 'último día'
+    : (r.diasRestantes===1?'falta 1 día':'faltan '+r.diasRestantes+' días');
+  $('cicloBarra').style.width=pct+'%';
+  $('cicloLibre').textContent=Engine.format(r.libre);
+  $('cicloLibre').style.color=col;
+  $('cicloPorDia').innerHTML = r.libre<=0
+    ? 'No te queda margen en este ciclo.'
+    : (r.diasRestantes>0
+        ? '<b style="color:'+col+'">'+Engine.format(r.porDia)+' por día</b> si lo repartes hasta el '+diaMes(r.fin)+'.'
+        : 'Hoy cierra el ciclo.');
+
+  const piezas = r.base==='ciclo'
+    ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'salió <b>'+Engine.format(r.salio)+'</b>']
+    : ['Aún no registras el ingreso de este ciclo, así que esto mide el saldo de tus cuentas',
+       'has gastado <b>'+Engine.format(r.salio)+'</b>'];
+  if(r.comprometido>0){
+    piezas.push('y <b style="color:var(--gold)">'+Engine.format(r.comprometido)+'</b> ya tiene dueño ('
+      +r.porPagar.map(p=>esc(p.nombre)).join(', ')+')');
+  }
+  $('cicloDetalle').innerHTML=piezas.join(' · ')+'.';
+}
+function diaMes(iso){
+  try{
+    return new Date(iso+'T12:00:00').toLocaleDateString('es-GT',{day:'numeric',month:'short'});
+  }catch(e){ return iso; }
+}
+
 function renderProyeccionMes(){
   const card=$('proyCard'); if(!card) return;
   if(mesSel!==mesActualSistema()){ card.classList.add('hide'); return; }
+  /* Con el ciclo de pago a pago activo, la proyección del mes calendario dice
+     lo contrario que la realidad —en rojo del 1 al 14 aunque todo vaya bien—,
+     así que se calla y manda el ciclo. */
+  if(cicloCfg().activo && cicloActual()){ card.classList.add('hide'); return; }
   const t=Engine.recalculate(mesSel);
   const salidas=t.gastos+t.tarjeta;
   const diaHoy=new Date().getDate(), dias=diasEnMes(mesSel);
@@ -3843,8 +4013,27 @@ window.toggleNotifPanel = toggleNotifPanel;
 function toggleNotifPanel(){ renderNotifPanel(); renderNotifEstado(); renderNotifPrefs(); openSheet('sheetAlerts'); }
 
 /* ---------- 18. Respaldo Excel ---------- */
+function renderCicloAjustes(){
+  const cfg=cicloCfg();
+  $('cicloActivo').checked=!!cfg.activo;
+  $('cicloDias').value=cfg.dias.join(', ');
+  const r=cfg.activo?resumenCiclo():null;
+  $('cicloAyuda').textContent = !cfg.activo
+    ? 'Apagado: la app mide por mes del calendario.'
+    : (r ? 'Tu ciclo en curso va del '+diaMes(r.ini)+' al '+diaMes(r.fin)+'.'
+         : 'Escribe al menos dos días para armar el ciclo.');
+}
+function guardarCicloAjustes(){
+  const cfg=cicloCfg();
+  cfg.activo=$('cicloActivo').checked;
+  const dias=$('cicloDias').value.split(/[^0-9]+/).map(Number).filter(n=>n>=1&&n<=31);
+  if(dias.length) cfg.dias=[...new Set(dias)].sort((a,b)=>a-b);
+  saveDB(); renderCicloAjustes(); renderCiclo(); actualizarResumenNativo(); hap();
+}
+
 function openAdminPanel(){
   mostrarVersionApp();
+  renderCicloAjustes();
   $('stTx').textContent=DB.transacciones.length;
   $('stBancos').textContent=DB.bancos.length;
   $('stCats').textContent=DB.categorias.length;
@@ -4412,6 +4601,9 @@ function wire(){
   $('btnPegarRestaurar').onclick=restaurarPegado;
   $('pegarTexto').oninput=revisarPegado;
   $('btnWipe').onclick=limpiarTodo;
+  $('cicloActivo').onchange=guardarCicloAjustes;
+  $('cicloDias').onchange=guardarCicloAjustes;
+  $('cicloDias').onblur=guardarCicloAjustes;
   $('btnAbrirLector').onclick=abrirLector;
   $('btnCopiarDiag').onclick=copiarDiagnostico;
   $('btnReintentarLector').onclick=reactivarLector;
@@ -5215,15 +5407,25 @@ function actualizarResumenNativo(){
     diario=Math.max(0,(t.ingresos-t.gastos-t.tarjeta-t.ahorros)/restantes);
   }catch(e){}
 
+  /* El aviso de la noche no debe quedarse en "hoy gastaste X": lo que se quiere
+     saber es en qué termina esto. Con el ciclo de pago a pago ya calculado, el
+     lado nativo puede armar la frase "a este ritmo cierras con Q tanto". */
+  const c=resumenCiclo();
+  const ciclo = c ? {
+    cicloFin:c.fin, cicloDiasRestantes:c.diasRestantes, cicloTranscurridos:c.transcurridos,
+    cicloLibre:c.libre, cicloPorDia:c.porDia, cicloSalio:c.salio, cicloEntro:c.entro,
+    cicloRitmo: c.transcurridos>0 ? c.salio/c.transcurridos : 0
+  } : {};
+
   try{
-    N.guardarResumen({
+    N.guardarResumen(Object.assign({
       fecha:h,
       gastadoHoy:suma(gastosHoy),
       movsHoy:gastosHoy.length,
       diario:diario,
       gastadoSemana:suma(enRango(ini7,h)),
       gastadoSemanaPrevia:suma(enRango(iniPrev,finPrev))
-    });
+    }, ciclo));
   }catch(e){}
 }
 

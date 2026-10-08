@@ -183,19 +183,66 @@ public class Avisos {
         if (movs == 0) {
             titulo = "Hoy no gastaste nada";
             cuerpo = "Un día completo sin movimientos. Así se construye el colchón.";
-            double disp = r.optDouble("diario", 0);
-            if (disp > 0) cuerpo += " Tu margen diario sube a " + moneda(disp) + ".";
         } else {
             titulo = "Hoy gastaste " + moneda(gastado);
-            cuerpo = movs + (movs == 1 ? " movimiento" : " movimientos") + " registrados.";
+            cuerpo = movs + (movs == 1 ? " movimiento" : " movimientos") + ".";
+        }
+
+        String cierre = proyeccionCiclo(r, gastado, movs == 0);
+        if (!cierre.isEmpty()) {
+            cuerpo += " " + cierre;
+        } else {
             double diario = r.optDouble("diario", 0);
-            if (diario > 0) {
+            if (diario > 0 && movs > 0) {
                 cuerpo += gastado > diario
                         ? " Te pasaste " + moneda(gastado - diario) + " de tu margen del día."
                         : " Te quedaron " + moneda(diario - gastado) + " de tu margen del día.";
             }
         }
         simple(ctx, 7001, titulo, cuerpo);
+    }
+
+    /**
+     * Lo que de verdad se quiere saber de noche no es cuánto se fue hoy, sino en
+     * qué termina esto. Toma el ritmo de gasto de lo que va del ciclo, lo
+     * proyecta sobre los días que faltan y dice con cuánto se cierra.
+     *
+     * El ritmo del día de hoy pesa aparte: si hoy no se gastó nada, la frase lo
+     * aprovecha para mostrar que el cierre mejora.
+     */
+    private static String proyeccionCiclo(JSONObject r, double gastadoHoy, boolean diaLimpio) {
+        int faltan = r.optInt("cicloDiasRestantes", -1);
+        if (faltan < 0) return "";
+        double libre = r.optDouble("cicloLibre", 0);
+        double ritmo = r.optDouble("cicloRitmo", 0);
+
+        if (faltan == 0) {
+            return libre > 0
+                    ? "Cierras este periodo con " + moneda(libre) + " sin gastar."
+                    : "Hoy cierra el periodo.";
+        }
+        if (libre <= 0) {
+            return "Ya no te queda margen para los " + diasTxt(faltan) + " que faltan.";
+        }
+        if (ritmo <= 0) {
+            return "Te quedan " + moneda(libre) + " para " + diasTxt(faltan) + ".";
+        }
+
+        double cierre = libre - ritmo * faltan;
+        String base = "A este ritmo (" + moneda(ritmo) + " al día) cierras ";
+        if (cierre >= 1) {
+            return base + "con " + moneda(cierre) + " ahorrado."
+                    + (diaLimpio ? " Un día como hoy lo sube." : "");
+        }
+        if (cierre > -1) return base + "justo en cero.";
+
+        double porDia = libre / faltan;
+        return base + "corto por " + moneda(-cierre) + ". Bajando a " + moneda(porDia)
+                + " al día llegas sin deber.";
+    }
+
+    private static String diasTxt(int n) {
+        return n == 1 ? "1 día" : n + " días";
     }
 
     public static void resumenSemanal(Context ctx) {
@@ -223,6 +270,8 @@ public class Avisos {
                 cuerpo = "Cerraste en " + moneda(semana) + ", un " + pct + "% arriba.";
             }
         }
+        String cierre = proyeccionCiclo(r, 0, false);
+        if (!cierre.isEmpty()) cuerpo += " " + cierre;
         simple(ctx, 7002, titulo, cuerpo);
     }
 
