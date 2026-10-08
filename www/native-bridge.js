@@ -21,8 +21,10 @@
 
   var LLAVE_DB = 'nebula.finanzas.v1';
   var CANAL = 'caudal-avisos';
-  var HORA_AVISO = 9;          // 9:00 de la mañana, hora local
-  var MESES_ADELANTE = 6;      // cuántos meses de obligaciones mensuales programar
+  var HORAS_AVISO = [9, 18];   // mañana y tarde, hora local
+  var DIAS_AVISO = 3;          // cuántos días antes empieza a insistir
+  var MESES_ADELANTE = 4;      // cuántos meses de obligaciones mensuales programar
+  var TOPE_AVISOS = 150;       // Android no acepta alarmas exactas sin límite
 
   function cap() { return window.Capacitor; }
   function esNativo() {
@@ -91,6 +93,13 @@
     for (var i = 0; i < txt.length; i++) h = ((h << 5) + h + txt.charCodeAt(i)) | 0;
     return Math.abs(h) % 800000 + 1000;   // 1000..800999, lejos del rango inmediato
   }
+  /* "2026-10-13" → "lun 13 oct", para que el aviso diga la fecha sin ocupar línea. */
+  function diaCorto(iso) {
+    try {
+      return aFecha(iso, 12).toLocaleDateString('es-GT',
+        { weekday: 'short', day: 'numeric', month: 'short' });
+    } catch (e) { return iso; }
+  }
   function moneda(n) {
     try {
       return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(Number(n) || 0);
@@ -140,6 +149,9 @@
     var ahora = Date.now();
     var lista = [];
     var hoy = hoyLocal();
+    var diasAviso = Number(prefs.diasAnticipacion);
+    if (!isFinite(diasAviso) || diasAviso < 0) diasAviso = DIAS_AVISO;
+    diasAviso = Math.min(diasAviso, 10);
 
     db.obligaciones.forEach(function (ob) {
       var ocurrencias = [];
@@ -158,31 +170,39 @@
         if (yaPagada(db, ob, venc.slice(0, 7))) return;
 
         var monto = moneda(ob.monto);
+        var nombre = ob.nombre || 'Obligación';
 
-        // Aviso 3 días antes
-        var previa = new Date(aFecha(venc, HORA_AVISO).getTime() - 3 * 86400000);
-        if (previa.getTime() > ahora + 60000) {
-          lista.push({
-            id: idDe('prev:' + ob.id + ':' + venc),
-            title: 'Pago próximo',
-            body: (ob.nombre || 'Obligación') + ' vence en 3 días · ' + monto,
-            channelId: CANAL,
-            smallIcon: 'ic_stat_caudal',
-            schedule: { at: previa, allowWhileIdle: true }
-          });
-        }
+        /* Una cuenta por pagar no se recuerda una sola vez: se insiste cada
+           día desde unos días antes, por la mañana y por la tarde, hasta que
+           llega la fecha. El texto dice cuánto falta, así que mirar la
+           notificación basta para saber si urge. */
+        for (var d = diasAviso; d >= 0; d--) {
+          for (var h = 0; h < HORAS_AVISO.length; h++) {
+            var cuando = new Date(aFecha(venc, HORAS_AVISO[h]).getTime() - d * 86400000);
+            if (cuando.getTime() <= ahora + 60000) continue;
 
-        // Aviso el mismo día
-        var elDia = aFecha(venc, HORA_AVISO);
-        if (elDia.getTime() > ahora + 60000) {
-          lista.push({
-            id: idDe('hoy:' + ob.id + ':' + venc),
-            title: 'Hoy toca pagar',
-            body: (ob.nombre || 'Obligación') + ' · ' + monto,
-            channelId: CANAL,
-            smallIcon: 'ic_stat_caudal',
-            schedule: { at: elDia, allowWhileIdle: true }
-          });
+            var tarde = HORAS_AVISO[h] >= 12;
+            var titulo, cuerpo;
+            if (d === 0) {
+              titulo = tarde ? 'Vence hoy, aún sin pagar' : 'Hoy toca pagar';
+              cuerpo = nombre + ' · ' + monto + (tarde ? ' · se vence hoy' : '');
+            } else if (d === 1) {
+              titulo = 'Vence mañana';
+              cuerpo = nombre + ' · ' + monto;
+            } else {
+              titulo = 'Faltan ' + d + ' días';
+              cuerpo = nombre + ' · ' + monto + ' · vence el ' + diaCorto(venc);
+            }
+
+            lista.push({
+              id: idDe('ob:' + ob.id + ':' + venc + ':' + d + ':' + HORAS_AVISO[h]),
+              title: titulo,
+              body: cuerpo,
+              channelId: CANAL,
+              smallIcon: 'ic_stat_caudal',
+              schedule: { at: cuando, allowWhileIdle: true }
+            });
+          }
         }
       });
     });
@@ -190,7 +210,7 @@
     // Android limita cuántas alarmas exactas puede tener una app; recortamos
     // a las más cercanas en el tiempo, que son las que de verdad importan.
     lista.sort(function (a, b) { return a.schedule.at - b.schedule.at; });
-    lista = lista.slice(0, 60);
+    lista = lista.slice(0, TOPE_AVISOS);
 
     await cancelarProgramados();
     if (!lista.length) return 0;

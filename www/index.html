@@ -387,6 +387,9 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 .presets button{padding:11px 4px;border-radius:15px;background:var(--surface);border:1px solid var(--stroke);font-size:10.5px;font-weight:700;line-height:1.3}
 .presets button em{display:block;font-style:normal;font-size:21px;margin-bottom:3px}
 .presets button.on{border-color:var(--violet);background:var(--violet-soft)}
+.presets.scroll{max-height:208px;overflow-y:auto;padding:2px;scrollbar-width:thin}
+.icono-libre{margin-top:9px}
+.icono-libre input{font-size:13px;padding:10px 12px}
 
 /* ---------- Registro rápido ---------- */
 .q-amount{text-align:center;padding:12px 0 6px}
@@ -964,6 +967,14 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <input type="hidden" id="pendEditId">
     <label class="f"><span>Monto (Q)</span><input class="inp num" id="pendMonto" type="number" step="0.01" min="0" required inputmode="decimal"></label>
     <label class="f"><span>Descripción</span><input class="inp" id="pendDesc" type="text"></label>
+    <div class="f hide" id="wrapPendIcono">
+      <span>Cómo se ve este comercio</span>
+      <div style="display:flex;align-items:center;gap:11px">
+        <div id="pendMarca"></div>
+        <input class="inp" id="pendIcono" type="text" maxlength="6" placeholder="Pon un emoji, o déjalo así"
+               autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1">
+      </div>
+    </div>
     <div id="wrapPendCat">
       <div id="pendCatSugerido" class="hide" style="margin:0 0 8px"></div>
       <label class="f"><span>Categoría</span><select class="inp" id="pendCat"></select></label>
@@ -1042,6 +1053,12 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <div class="minirow"><span>💰 Presupuestos (cuando superas el límite de una categoría)</span><input type="checkbox" data-np="presupuesto" style="width:20px;height:20px;accent-color:var(--violet)"></div>
     <div class="minirow"><span>💳 Tarjeta de crédito (cerca de su límite)</span><input type="checkbox" data-np="tarjeta" style="width:20px;height:20px;accent-color:var(--violet)"></div>
     <div class="minirow"><span>📄 Obligaciones (por vencer, hoy o vencidas)</span><input type="checkbox" data-np="obligaciones" style="width:20px;height:20px;accent-color:var(--violet)"></div>
+    <div class="minirow"><span>⏰ Insistir desde<br><span class="muted" style="font-size:11px">Avisa cada día a las 9:00 y a las 18:00 hasta la fecha de pago.</span></span>
+      <select class="inp" id="diasAnticipacion" style="width:auto;padding:7px 10px;font-size:12.5px">
+        <option value="1">1 día antes</option><option value="2">2 días antes</option>
+        <option value="3">3 días antes</option><option value="5">5 días antes</option>
+        <option value="7">7 días antes</option><option value="0">Solo el mismo día</option>
+      </select></div>
     <div class="minirow"><span>🎯 Metas (cuando completas un plan de ahorro)</span><input type="checkbox" data-np="metas" style="width:20px;height:20px;accent-color:var(--violet)"></div>
     <div class="minirow"><span>📈 Comparativas (gastaste más/menos que antes)</span><input type="checkbox" data-np="comparativas" style="width:20px;height:20px;accent-color:var(--violet)"></div>
     <div class="minirow"><span>🗂️ Reportes (se cerró un mes)</span><input type="checkbox" data-np="reportes" style="width:20px;height:20px;accent-color:var(--violet)"></div>
@@ -1186,9 +1203,16 @@ function mesActualSistema(){ const d=new Date(); return d.getFullYear()+'-'+Stri
 function pick(sel,attr,def){ const el=document.querySelector(sel); return (el&&el.dataset[attr])||def; }
 
 const COLORES=['#8B6CFF','#2DD4BF','#FF6B81','#FFC46B','#5FC5FF','#A78BFA','#34D399','#F472B6','#FB923C','#60A5FA','#F87171','#4ADE80'];
-const ICONOS_BANCO=['🏦','💵','💳','📱','🪙','🏧','💼','🐖'];
-const ICONOS_CAT=['🛒','🍽️','🚗','🏠','💡','🏥','👕','🎬','📚','📺','⚡','✈️','🎁','🐾','💈','🧾'];
-const ICONOS_OB=['💡','💧','📶','📺','🏠','💳','🚗','📱','🎓','🛡️'];
+const ICONOS_BANCO=['🏦','💵','💳','📱','🪙','🏧','💼','🐖','💶','💴','🧾','📊','🔐','⭐','🟢','🔵'];
+const ICONOS_CAT=[
+  '🛒','🍽️','🍔','🍕','🌮','🍗','🍜','☕','🍺','🧋',
+  '🚗','⛽','🚌','🚕','✈️','🛵','🅿️',
+  '🏠','💡','💧','🔥','📶','📺','📱','💻','🎮','🎬','🎵','📚',
+  '🏥','💊','🦷','🧘','🏋️','⚽',
+  '👕','👟','💈','💄','🧴','🧺',
+  '🎁','🎉','🐾','🌱','🧸','🧒','👨‍👩‍👧',
+  '🧾','💳','🏦','💼','📈','🛠️','🧰','🏫','🎓','✏️','🐶','🌍','🎸','🛏️','🧽','❤️'];
+const ICONOS_OB=['💡','💧','📶','📺','🏠','💳','🚗','📱','🎓','🛡️','🏦','🧾','🔥','🚌','🏥','💼','📚','🐾','🧰','📄'];
 const PRESET_METAS=[['✈️','Viaje'],['🛟','Emergencia'],['🎓','Educación'],['🏠','Casa'],['🚗','Vehículo'],['💍','Boda'],['💻','Equipo'],['🎯','Libre']];
 const TIPOS_BANCO={efectivo:'Efectivo',monetaria:'Monetaria',ahorro:'Ahorro',digital:'Billetera',credito:'Crédito'};
 const CATS_BASE=[
@@ -1206,7 +1230,7 @@ function dbVacia(){
   return { transacciones:[], bancos:[], categorias:[], obligaciones:[], metas:[], reportes:{},
            config:{estrategia:'503020', tema:'dark', reparto:null, iniciado:false,
                    respaldo:{intervalo:15, ultimo:null, total:0},
-                   notifPrefs:{presupuesto:true, tarjeta:true, obligaciones:true, metas:true, comparativas:true, reportes:true},
+                   notifPrefs:{presupuesto:true, tarjeta:true, obligaciones:true, metas:true, comparativas:true, reportes:true, diasAnticipacion:3},
                    pin:{activo:false, hash:null}},
            alertas:[], descartadas:[] };
 }
@@ -1626,8 +1650,43 @@ function verMovimientosBanco(id){
 function renderBancoColorSwatches(sel){
   $('bancoColores').innerHTML=COLORES.map(c=>`<button type="button" data-c="${c}" class="${c===sel?'on':''}" style="background:${c}"></button>`).join('');
 }
+/* La rejilla nunca va a tener todos los emojis que a alguien se le ocurran, así
+   que debajo va un campo donde se puede escribir cualquiera. Lo que se escriba
+   entra como un botón más al principio y queda seleccionado, de modo que el
+   resto del formulario lo lee igual que a los de fábrica. */
 function renderIconPicker(cont,lista,sel){
-  $(cont).innerHTML=lista.map(i=>`<button type="button" data-i="${i}" class="${i===sel?'on':''}"><em>${i}</em></button>`).join('');
+  const c=$(cont);
+  const todos = (sel && lista.indexOf(sel)<0) ? [sel].concat(lista) : lista;
+  c.classList.toggle('scroll', todos.length>20);
+  c.innerHTML=todos.map(i=>`<button type="button" data-i="${i}" class="${i===sel?'on':''}"><em>${i}</em></button>`).join('');
+
+  /* El campo va FUERA del <label>: dentro, tocar un botón de la rejilla
+     enfocaría el input y abriría el teclado sin que nadie lo pidiera. */
+  const anclaje=c.closest('label')||c;
+  let caja=anclaje.nextElementSibling;
+  if(!caja || !caja.classList.contains('icono-libre')){
+    caja=document.createElement('div');
+    caja.className='icono-libre';
+    caja.id=cont+'Libre';
+    caja.innerHTML='<input class="inp" maxlength="6" placeholder="…o escribe el emoji que quieras" '
+      +'autocomplete="off" autocorrect="off" spellcheck="false">';
+    anclaje.parentNode.insertBefore(caja,anclaje.nextSibling);
+    const inp=caja.querySelector('input');
+    inp.oninput=()=>{
+      const v=inp.value.trim();
+      if(!v) return;
+      const ya=[...c.querySelectorAll('[data-i]')].find(b=>b.dataset.i===v);
+      c.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+      if(ya){ ya.classList.add('on'); ya.scrollIntoView({block:'nearest'}); }
+      else{
+        c.insertAdjacentHTML('afterbegin',
+          `<button type="button" data-i="${esc(v)}" class="on"><em>${esc(v)}</em></button>`);
+        c.scrollTop=0;
+      }
+      hap(8);
+    };
+  }
+  caja.querySelector('input').value='';
 }
 function toggleBancoTipoFields(){
   const cr=$('bancoTipo').value==='credito';
@@ -1944,10 +2003,19 @@ function medioDePago(t){
   if(!b) return 'Sin cuenta asignada';
   return b.tipo==='credito' ? 'Tarjeta '+b.nombre : b.nombre;
 }
+/* En un gasto, la cara del movimiento es el comercio, no el tipo: ese dato ya
+   lo da el color del monto. En lo demás se queda el ícono de siempre. */
+function caraTx(t,ic,col,tam){
+  if(t.tipo==='gasto' && t.descripcion){
+    const m=marcaComercioHTML(t.descripcion,tam||40);
+    if(m) return m;
+  }
+  return `<div class="ic" style="background:${col}22;color:${col}">${ic}</div>`;
+}
 function lineaTx(t){
   const est=ESTILO_TX[t.tipo]||ESTILO_TX.gasto, ic=est[0], col=est[1];
   return `<div class="tx" data-tx="${t.id}" style="align-items:flex-start">
-    <div class="ic" style="background:${col}22;color:${col}">${ic}</div>
+    ${caraTx(t,ic,col)}
     <div class="bd"><b>${esc(t.descripcion||t.categoria||'Movimiento')}${t.foto?' 📷':''}</b>
       <span>💳 ${esc(medioDePago(t))}</span>
       <span>📅 ${fechaLarga(t.fecha)} · 🏷️ ${esc(t.categoria||'Sin categoría')}</span></div>
@@ -3089,7 +3157,7 @@ function renderHistory(){
     const sub=[t.categoria, b?b.nombre:null, t.tipo==='transfer'&&bd?'→ '+bd.nombre:null, t.fecha.slice(8)+'/'+t.fecha.slice(5,7)]
       .filter(Boolean).join(' · ');
     return `<div class="tx" data-tx="${t.id}">
-      <div class="ic" style="background:${col}22;color:${col}">${ic}</div>
+      ${caraTx(t,ic,col)}
       <div class="bd"><b>${esc(t.descripcion||t.categoria||'Movimiento')}</b><span>${esc(sub)}</span></div>
       <div class="am"><b class="num" style="color:${col}">${sg}${Engine.format(t.monto).replace('Q','Q ')}</b></div>
     </div>`;
@@ -3525,7 +3593,7 @@ async function probarNotificacion(){
   showToast('Aviso mostrado dentro de la app');
 }
 function notifPrefsCfg(){
-  DB.config.notifPrefs=Object.assign({presupuesto:true, tarjeta:true, obligaciones:true, metas:true, comparativas:true, reportes:true}, DB.config.notifPrefs||{});
+  DB.config.notifPrefs=Object.assign({presupuesto:true, tarjeta:true, obligaciones:true, metas:true, comparativas:true, reportes:true, diasAnticipacion:3}, DB.config.notifPrefs||{});
   return DB.config.notifPrefs;
 }
 function pushNotify(titulo,cuerpo,clave,icono,cat){
@@ -3768,6 +3836,8 @@ function renderNotifPanel(){
 function renderNotifPrefs(){
   const cfg=notifPrefsCfg();
   document.querySelectorAll('#notifPrefList [data-np]').forEach(el=>{ el.checked = cfg[el.dataset.np]!==false; });
+  const d=$('diasAnticipacion');
+  if(d){ d.value=String(cfg.diasAnticipacion==null?3:cfg.diasAnticipacion); }
 }
 window.toggleNotifPanel = toggleNotifPanel;
 function toggleNotifPanel(){ renderNotifPanel(); renderNotifEstado(); renderNotifPrefs(); openSheet('sheetAlerts'); }
@@ -4301,8 +4371,16 @@ function wire(){
   $('btnNotifOpen').onclick=abrirFueraDelMarco;
   $('btnCopiarUrl').onclick=copiarUrlApp;
   $('notifPrefList').onchange=e=>{
+    if(e.target.id==='diasAnticipacion'){
+      const n=Number(e.target.value);
+      notifPrefsCfg().diasAnticipacion=n; saveDB(); hap();
+      reprogramarNativo();
+      showToast(n?('Te avisaré desde '+n+(n===1?' día antes':' días antes')):'Solo te avisaré el mismo día');
+      return;
+    }
     const el=e.target.closest('[data-np]'); if(!el) return;
     notifPrefsCfg()[el.dataset.np]=el.checked; saveDB(); hap();
+    if(el.dataset.np==='obligaciones') reprogramarNativo();
     showToast(el.checked?'Vas a recibir esos avisos':'No te avisaré más de eso (seguirá en la campana)');
   };
   $('movBanco').onchange=actualizarDispAbono;
@@ -4316,6 +4394,10 @@ function wire(){
     const ok=e.target.closest('[data-pend-ok]');   if(ok) return registrarPendienteDirecto(ok.dataset.pendOk);
   };
   $('pendEditForm').onsubmit=guardarPendEdit;
+  $('pendIcono').oninput=()=>{
+    const p=colaPend.find(x=>x.id===$('pendEditId').value);
+    if(p&&p.comercio) pintarMarcaPend(p.comercio);
+  };
   $('pendDescartar').onclick=()=>descartarPendiente($('pendEditId').value);
   $('btnReporte').onclick=abrirReportes;
   $('btnGenerarReporte').onclick=generarReporte;
@@ -4652,6 +4734,71 @@ function sugerirCategoria(comercio){
   return {categoria:'',confianza:'baja',razon:'es '+nombreTipo(tipo),opciones};
 }
 
+/* ---- Cómo se ve un comercio -----------------------------------------------
+   No se descargan logos: son marcas ajenas y además habría que mandar a un
+   servidor la lista de dónde compra uno, que es justo lo que esta app evita.
+   En su lugar, cada comercio tiene inicial y color propios —el color sale del
+   nombre, así que Steam siempre se ve igual— y una insignia con el emoji del
+   tipo de negocio. Si se le asigna un emoji a mano, ese manda.           */
+const EMOJI_TIPO = {gasolinera:'⛽',supermercado:'🛒',farmacia:'💊',comida:'🍔',cafe:'☕',
+  streaming:'🎬',telecom:'📶',transporte:'🚕',salud:'🏥',ropa:'👕',tienda:'🏬',seguro:'🛡️'};
+
+function iconosComercio(){
+  DB.config.iconosComercio = DB.config.iconosComercio || {};
+  return DB.config.iconosComercio;
+}
+function iconoDeComercio(comercio){
+  const k=claveComercio(comercio);
+  if(!k) return '';
+  const m=iconosComercio();
+  if(m[k]) return m[k];
+  for(const kk in m){ if(kk && (k.startsWith(kk)||kk.startsWith(k))) return m[kk]; }
+  return '';
+}
+function asignarIconoComercio(comercio,emoji){
+  const k=claveComercio(comercio); if(!k) return;
+  if(emoji) iconosComercio()[k]=emoji; else delete iconosComercio()[k];
+}
+/* Tono estable a partir del nombre: el mismo comercio sale siempre del mismo
+   color, y dos comercios distintos casi nunca coinciden. Se devuelve el matiz
+   suelto, no una cadena hsl() ya armada, porque hace falta componerlo con
+   distintas transparencias y a un hsl() no se le puede pegar un alfa hex. */
+function matizComercio(texto){
+  let h=5381;
+  for(let i=0;i<texto.length;i++) h=((h<<5)+h+texto.charCodeAt(i))|0;
+  return Math.abs(h)%360;
+}
+function tono(h,l,a){ return 'hsl('+h+' 62% '+l+'%'+(a==null?'':' / '+a)+')'; }
+function marcaComercio(comercio){
+  const k=claveComercio(comercio);
+  if(!k) return null;
+  const propio=iconoDeComercio(comercio);
+  const tipo=tipoComercio(comercio);
+  const letra=(String(comercio).trim().match(/[\p{L}\p{N}]/u)||['?'])[0].toUpperCase();
+  return {propio, insignia:EMOJI_TIPO[tipo]||'', letra, matiz:matizComercio(k)};
+}
+/** Devuelve el HTML del círculo, o '' si no hay nada que dibujar.
+    `forzar` permite previsualizar un emoji que todavía no se ha guardado. */
+function marcaComercioHTML(comercio,tam,forzar){
+  const m=marcaComercio(comercio);
+  if(!m) return '';
+  if(forzar!==undefined) m.propio=forzar;
+  const s=tam||38;
+  const h=m.matiz;
+  const dentro = m.propio
+    ? `<span style="font-size:${Math.round(s*.5)}px;line-height:1">${esc(m.propio)}</span>`
+    : `<span style="font-weight:800;font-size:${Math.round(s*.44)}px;color:${tono(h,72)};
+         letter-spacing:-.02em">${esc(m.letra)}</span>`;
+  /* La insignia va dentro del cuadro: asomada por fuera se montaba sobre el
+     borde de la tarjeta y quedaba recortada. */
+  const badge = (!m.propio && m.insignia)
+    ? `<span style="position:absolute;right:1px;bottom:0;font-size:${Math.round(s*.3)}px;
+         line-height:1;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.5))">${m.insignia}</span>` : '';
+  return `<div style="position:relative;width:${s}px;height:${s}px;border-radius:${Math.round(s*.33)}px;
+      background:${tono(h,52,.22)};border:1px solid ${tono(h,58,.45)};
+      display:grid;place-items:center;flex:none">${dentro}${badge}</div>`;
+}
+
 function nombreTipo(t){
   return ({gasolinera:'una gasolinera',supermercado:'un supermercado',farmacia:'una farmacia',
     comida:'un lugar de comida',cafe:'una cafetería',streaming:'una suscripción digital',
@@ -4915,7 +5062,8 @@ function renderPendientes(){
     ].filter(Boolean).join(' · ');
     return `<div class="card tight" style="margin-bottom:10px;border-color:${col}44">
       <div style="display:flex;align-items:flex-start;gap:10px">
-        <div class="ic" style="background:${col}22;color:${col};width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:17px;flex:none">${esPago?'✔️':'🛒'}</div>
+        ${(!esPago && marcaComercioHTML(p.comercio,40)) ||
+          `<div class="ic" style="background:${col}22;color:${col};width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:17px;flex:none">${esPago?'✔️':'🛒'}</div>`}
         <div style="flex:1;min-width:0">
           <b style="font-size:14.5px;display:block">${esc(p.comercio||(esPago?'Pago a tarjeta':'Compra'))}</b>
           <span class="muted" style="font-size:11.5px">${detalle}</span>
@@ -4958,8 +5106,21 @@ function abrirPendEdit(id){
   }else if(banco) $('pendBanco').value=banco.id;
   if(!esPago) pintarSugerenciaCat(p.comercio);
 
+  $('wrapPendIcono').classList.toggle('hide', esPago || !p.comercio);
+  if(!esPago && p.comercio){
+    $('pendIcono').value=iconoDeComercio(p.comercio)||'';
+    pintarMarcaPend(p.comercio);
+  }
+
   $('pendCrudo').textContent='Texto original: '+(p.textoCrudo||'');
   openSheet('sheetPendEdit');
+}
+
+/* Vista previa del círculo mientras se escribe el emoji, sin guardar nada
+   todavía: lo que se ve es exactamente lo que quedará al dar Registrar. */
+function pintarMarcaPend(comercio){
+  const caja=$('pendMarca'); if(!caja) return;
+  caja.innerHTML=marcaComercioHTML(comercio,44,$('pendIcono').value.trim());
 }
 
 /* Deja puesta la categoría más probable y ofrece las otras candidatas como
@@ -5004,6 +5165,7 @@ function guardarPendEdit(e){
 
   const cat=esPago?null:($('pendCat').value||'Sin categoría');
   if(!esPago && $('pendRecordar').checked) aprenderComercio(p.comercio,cat);
+  if(!esPago && p.comercio) asignarIconoComercio(p.comercio,$('pendIcono').value.trim());
 
   const ok=registrarPendiente(p,{monto,fecha:$('pendFecha').value,bancoId:banco,
     tarjetaId:$('pendTarjeta').value||null,categoria:cat,descripcion:$('pendDesc').value.trim()});
