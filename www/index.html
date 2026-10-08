@@ -227,6 +227,13 @@ main{padding:4px 18px calc(var(--nav-h) + var(--safe-b) + 34px)}
 .chip.on{background:var(--violet);border-color:transparent;color:#fff;font-weight:700}
 .chip.wrap{flex-wrap:wrap}
 .chips.wrap{flex-wrap:wrap;overflow:visible}
+.catchip{
+  padding:7px 12px;border-radius:999px;background:var(--surface);
+  border:1px solid var(--stroke);font-size:12px;font-weight:600;color:var(--text);
+  transition:transform .16s var(--spring),background .2s,border-color .2s;
+}
+.catchip:active{transform:scale(.93)}
+.catchip.on{background:var(--violet);border-color:transparent;color:#fff;font-weight:700}
 
 /* ---------- Lista de movimientos ---------- */
 .tx{
@@ -957,7 +964,10 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <input type="hidden" id="pendEditId">
     <label class="f"><span>Monto (Q)</span><input class="inp num" id="pendMonto" type="number" step="0.01" min="0" required inputmode="decimal"></label>
     <label class="f"><span>Descripción</span><input class="inp" id="pendDesc" type="text"></label>
-    <label class="f" id="wrapPendCat"><span>Categoría</span><select class="inp" id="pendCat"></select></label>
+    <div id="wrapPendCat">
+      <div id="pendCatSugerido" class="hide" style="margin:0 0 8px"></div>
+      <label class="f"><span>Categoría</span><select class="inp" id="pendCat"></select></label>
+    </div>
     <label class="f"><span>Cuenta</span><select class="inp" id="pendBanco"></select></label>
     <label class="f hide" id="wrapPendTarjeta"><span>Tarjeta a la que se abona</span><select class="inp" id="pendTarjeta"></select></label>
     <label class="f"><span>Fecha</span><input class="inp" id="pendFecha" type="date" required></label>
@@ -4476,13 +4486,177 @@ function mapaComercios(){
   DB.config.comercios = DB.config.comercios || {};
   return DB.config.comercios;
 }
-function claveComercio(c){ return String(c||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().slice(0,40); }
+function claveComercio(c){
+  return String(c||'').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]+/g,' ').trim().slice(0,40);
+}
 function categoriaDe(comercio){
   const m=mapaComercios(), k=claveComercio(comercio);
   if(!k) return '';
   if(m[k]) return m[k];
   for(const kk in m){ if(kk && (k.startsWith(kk)||kk.startsWith(k))) return m[kk]; }
   return '';
+}
+
+/* ---- Adivinar la categoría de un cobro ------------------------------------
+   El nombre del comercio que manda el banco es fijo y reconocible, así que el
+   tipo de negocio se acierta casi siempre. La categoría propia ya es otra cosa:
+   las de aquí no van por tipo de negocio sino por con quién o para qué se gastó
+   (GUSTOS SOLO (YO) contra GUSTOS (YO Y ANGIE) salen del mismo Taco Bell), y eso
+   el aviso no lo dice. Por eso se adivina en tres capas, de más segura a menos,
+   y lo que quede dudoso se pregunta en vez de inventarse.             */
+
+const TIPOS_COMERCIO = [
+  ['gasolinera', ['puma','shell','texaco','gasolin','esso','petro','combustible','servicentro','uno gt','estacion de servicio']],
+  ['supermercado',['la torre','paiz','walmart','despensa familiar','maxi despensa','pricesmart','la barata','supermerc','econosuper','super 24']],
+  ['farmacia',   ['farmacia','cruz verde','galeno','batres','meykos','kielsa','similares','farmazul']],
+  ['comida',     ['taco bell','mcdonal','burger king','kfc','campero','wendy','domino','pizza','little caesar','subway','frisco','china city','mister taco','sushi','restaurante','grill','panaderia','taqueria','rostipollo','sarita','pollolandia']],
+  ['cafe',       ['starbucks','cafe','coffee','barista','san martin','&cafe','dunkin']],
+  ['streaming',  ['steam','netflix','spotify','disney','hbo','youtube','playstation','xbox','nintendo','apple com','google play','prime video','crunchyroll','openai','anthropic','claude','epic games']],
+  ['telecom',    ['tigo','claro gt','movistar','telefonica','internet']],
+  ['transporte', ['uber','indrive','didi','parqueo','peaje','taxi','pullman']],
+  ['salud',      ['clinica','hospital','laboratorio','medico','dental','optica','sanatorio']],
+  ['ropa',       ['zara','bershka','siman','megapaca','pull bear','stradivarius','nike','adidas','mango','payless']],
+  ['tienda',     ['cemaco','office depot','intelaf','curacao','elektra','amazon','aliexpress','shein','temu','librer','ferreter']],
+  ['seguro',     ['seguro','aseguradora','bupa','mapfre','assa']]
+];
+
+/* Cómo suele llamarse cada tipo en las categorías que uno se arma. */
+const SINONIMOS_CAT = {
+  gasolinera:  ['gasolina','combustible','carro','vehiculo','transporte'],
+  supermercado:['supermercado','super','despensa','mercado','alimentos','viveres'],
+  farmacia:    ['farmacia','salud','medicina','medicamento'],
+  /* Comida y café a propósito sin 'gusto' ni 'antojo': cuando alguien tiene
+     varias categorías de ese estilo, el comercio no dice cuál toca. */
+  comida:      ['restaurante','comida','comer'],
+  cafe:        ['cafe','cafeteria'],
+  streaming:   ['multimedia','streaming','suscripcion','entretenimiento','ocio','juego'],
+  telecom:     ['internet','telefono','celular','servicio'],
+  transporte:  ['transporte','movilidad','taxi'],
+  salud:       ['salud','medico','clinica','seguro'],
+  ropa:        ['ropa','vestuario','compra'],
+  tienda:      ['compra','hogar','tienda','vario'],
+  seguro:      ['seguro','salud']
+};
+
+function tipoComercio(comercio){
+  const k=claveComercio(comercio);
+  if(!k) return '';
+  for(const [tipo,claves] of TIPOS_COMERCIO){
+    for(const c of claves) if(k.includes(c)) return tipo;
+  }
+  return '';
+}
+
+function normCat(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]+/g,' ').trim();
+}
+
+/* Qué categorías ha usado antes para este comercio o para otros del mismo
+   estilo. Vale más que cualquier diccionario: sale de lo que esta persona ya
+   decidió. Se separan las dos señales a propósito:
+     · nombre — "Taco Bell" contra "TACO BELL ANTIGUA": es el mismo lugar.
+     · tipo   — ambos son comida, y eso NO dice nada de la categoría, porque
+                el mismo restaurante cae en GUSTOS SOLO (YO) o en GUSTOS (YO Y
+                ANGIE) según con quién se fue. Esta señal nunca decide sola. */
+function categoriasDelHistorial(comercio){
+  const k=claveComercio(comercio), tipo=tipoComercio(comercio);
+  const vacio={nombre:[],tipo:[]};
+  if(!k) return vacio;
+  const palabras=k.split(' ').filter(p=>p.length>3);
+  const porNombre={}, porTipo={};
+  DB.transacciones.forEach(t=>{
+    if(t.tipo!=='gasto') return;
+    if(!t.categoria||t.categoria==='Sin categoría') return;
+    const d=claveComercio(t.descripcion);
+    if(!d) return;
+    let peso=0;
+    if(d===k) peso=10;
+    else if(d.includes(k)||k.includes(d)) peso=6;
+    else if(palabras.some(p=>p.length>4 && d.includes(p))) peso=4;
+    if(peso) porNombre[t.categoria]=(porNombre[t.categoria]||0)+peso;
+    else if(tipo && tipoComercio(t.descripcion)===tipo)
+      porTipo[t.categoria]=(porTipo[t.categoria]||0)+1;
+  });
+  const orden=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]);
+  return {nombre:orden(porNombre), tipo:orden(porTipo)};
+}
+
+/** Las categorías que más usa, para ofrecerlas de un toque cuando no se sabe. */
+function categoriasFrecuentes(n){
+  const cuenta={};
+  DB.transacciones.forEach(t=>{
+    if(t.tipo!=='gasto') return;
+    if(!t.categoria||t.categoria==='Sin categoría') return;
+    cuenta[t.categoria]=(cuenta[t.categoria]||0)+1;
+  });
+  return Object.entries(cuenta).sort((a,b)=>b[1]-a[1]).slice(0,n||3).map(x=>x[0]);
+}
+
+/**
+ * @return { categoria, confianza: alta|media|baja, razon, opciones:[...] }
+ *         opciones son las candidatas para mostrar como botones.
+ */
+function sugerirCategoria(comercio){
+  const existe = n => DB.categorias.some(c=>c.nombre===n);
+  const vacio = {categoria:'',confianza:'baja',razon:'',opciones:categoriasFrecuentes(3)};
+  if(!comercio) return vacio;
+
+  /* 1. Lo que ya se le enseñó para este comercio exacto. */
+  const aprendida=categoriaDe(comercio);
+  if(aprendida && existe(aprendida)){
+    return {categoria:aprendida,confianza:'alta',razon:'ya la usaste para este comercio',
+            opciones:categoriasFrecuentes(3)};
+  }
+
+  /* 2. El mismo comercio, escrito distinto. Esta sí puede decidir sola. */
+  const hist=categoriasDelHistorial(comercio);
+  const porNombre=hist.nombre.filter(x=>existe(x[0]));
+  if(porNombre.length){
+    const [mejor,peso]=porNombre[0];
+    const segundo=porNombre[1]?porNombre[1][1]:0;
+    return {categoria:mejor, confianza:(peso>=6 && peso>segundo)?'alta':'media',
+            razon:'ya lo clasificaste así antes',
+            opciones:[...new Set([...porNombre.slice(0,3).map(x=>x[0]),...categoriasFrecuentes(3)])].slice(0,4)};
+  }
+
+  /* 3. Se reconoce el tipo de negocio. Dos señales que se suman, porque por
+        separado se equivocan: cuántas veces mandó gastos de ese tipo a cada
+        categoría, y si alguna categoría se llama como el tipo. Cuando apuntan
+        al mismo lado (Puma → gasolinera → "Gasolina") no hay duda; cuando el
+        tipo reparte parejo entre varias (comida entre los dos GUSTOS y los
+        almuerzos) gana nadie y se pregunta, que es lo correcto. */
+  const tipo=tipoComercio(comercio);
+  if(!tipo) return vacio;
+
+  const votos={};
+  const sumar=(c,p)=>{ if(existe(c)) votos[c]=(votos[c]||0)+p; };
+  hist.tipo.forEach(([c,veces])=>sumar(c,Math.min(veces,3)));
+  (SINONIMOS_CAT[tipo]||[]).forEach(s=>{
+    DB.categorias.forEach(c=>{
+      const n=normCat(c.nombre);
+      if(n===s) sumar(c.nombre,4);
+      else if(n.includes(s) || (n.length>3 && s.includes(n))) sumar(c.nombre,2);
+    });
+  });
+
+  const orden=Object.entries(votos).sort((a,b)=>b[1]-a[1]);
+  const opciones=[...new Set([...orden.slice(0,3).map(x=>x[0]),...categoriasFrecuentes(2)])].slice(0,4);
+  if(!orden.length) return {categoria:'',confianza:'baja',razon:'es '+nombreTipo(tipo),opciones:categoriasFrecuentes(4)};
+
+  const [mejor,peso]=orden[0], segundo=orden[1]?orden[1][1]:0;
+  if(peso>=4 && peso>=segundo*2) return {categoria:mejor,confianza:'alta',razon:'es '+nombreTipo(tipo),opciones};
+  if(peso>=2 && peso>segundo)    return {categoria:mejor,confianza:'media',razon:'es '+nombreTipo(tipo),opciones};
+  return {categoria:'',confianza:'baja',razon:'es '+nombreTipo(tipo),opciones};
+}
+
+function nombreTipo(t){
+  return ({gasolinera:'una gasolinera',supermercado:'un supermercado',farmacia:'una farmacia',
+    comida:'un lugar de comida',cafe:'una cafetería',streaming:'una suscripción digital',
+    telecom:'telefonía o internet',transporte:'transporte',salud:'algo de salud',
+    ropa:'una tienda de ropa',tienda:'una tienda',seguro:'un seguro'})[t]||t;
 }
 function aprenderComercio(comercio,categoria){
   const k=claveComercio(comercio);
@@ -4539,7 +4713,13 @@ function registrarPendiente(p, extra){
 
   const banco = extra.bancoId || (bancoPorLast4(p.tarjeta)||{}).id || null;
   if(!banco) return false;                    // sin cuenta no se puede cuadrar el saldo
-  const cat = extra.categoria!=null ? extra.categoria : (categoriaDe(p.comercio)||'Sin categoría');
+  /* Confirmado desde la notificación, sin pasar por la app: solo se pone la
+     categoría cuando no hay duda; si no, queda sin categoría y se corrige. */
+  let cat = extra.categoria;
+  if(cat==null){
+    const s=sugerirCategoria(p.comercio);
+    cat = (s.confianza==='alta' && s.categoria) ? s.categoria : 'Sin categoría';
+  }
   postAction('addTx',{tipo:'gasto',monto,fecha,bancoId:banco,categoria:cat,
     descripcion:extra.descripcion||p.comercio||'Compra',origenAuto:p.autorizacion||''});
   return true;
@@ -4776,11 +4956,40 @@ function abrirPendEdit(id){
     const tj=bancoPorLast4(p.tarjeta)||DB.bancos.find(b=>b.tipo==='credito');
     if(tj) $('pendTarjeta').value=tj.id;
   }else if(banco) $('pendBanco').value=banco.id;
-  const cat=categoriaDe(p.comercio);
-  if(cat) $('pendCat').value=cat;
+  if(!esPago) pintarSugerenciaCat(p.comercio);
 
   $('pendCrudo').textContent='Texto original: '+(p.textoCrudo||'');
   openSheet('sheetPendEdit');
+}
+
+/* Deja puesta la categoría más probable y ofrece las otras candidatas como
+   botones, que es más rápido que buscar en una lista de veinte. */
+function pintarSugerenciaCat(comercio){
+  const s=sugerirCategoria(comercio), caja=$('pendCatSugerido'), sel=$('pendCat');
+  sel.value=s.categoria||'';
+  const opciones=(s.opciones||[]).filter(c=>DB.categorias.some(x=>x.nombre===c));
+  if(!opciones.length){ caja.classList.add('hide'); caja.innerHTML=''; return; }
+
+  const icono=n=>{ const c=DB.categorias.find(x=>x.nombre===n); return c&&c.icono?c.icono+' ':''; };
+  const nota = s.categoria
+    ? (s.confianza==='alta'
+        ? 'Puse <b>'+esc(s.categoria)+'</b>: '+esc(s.razon)+'.'
+        : 'Creo que va en <b>'+esc(s.categoria)+'</b> ('+esc(s.razon)+'), pero revísalo.')
+    : (s.razon ? 'Sé que '+esc(s.razon)+', pero no cuál de tus categorías le toca.'
+               : 'No reconozco este comercio. ¿En cuál va?');
+
+  caja.classList.remove('hide');
+  caja.innerHTML='<div class="muted" style="font-size:11.5px;line-height:1.5;margin-bottom:7px">'+nota+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+    +opciones.map(c=>`<button type="button" class="catchip" data-cat="${esc(c)}">${icono(c)}${esc(c)}</button>`).join('')
+    +'</div>';
+  const marcar=()=>caja.querySelectorAll('.catchip').forEach(b=>
+    b.classList.toggle('on', b.dataset.cat===sel.value));
+  caja.querySelectorAll('.catchip').forEach(b=>{
+    b.onclick=()=>{ sel.value=b.dataset.cat; marcar(); hap(8); };
+  });
+  sel.onchange=marcar;
+  marcar();
 }
 
 function guardarPendEdit(e){
