@@ -1982,14 +1982,18 @@ function resumenCiclo(){
   const c=cicloActual(); if(!c) return null;
   const h=hoy();
   const dentro=t=>t.fecha>=c.ini && t.fecha<=h;
-  let entro=0, salio=0;
+  let entro=0, salio=0, corriente=0;
   DB.transacciones.forEach(t=>{
     if(!dentro(t)) return;
     const v=num(t.monto);
     if(t.tipo==='ingreso') entro+=v;
-    /* El consumo con tarjeta no sale de la cuenta hoy; el abono a la tarjeta sí. */
-    else if(t.tipo==='gasto' && !Engine.esGastoTC(t)) salio+=v;
+    /* El consumo con tarjeta no sale de la cuenta hoy; el abono a la tarjeta sí.
+       Pero el abono es un movimiento grande de una sola vez, no un hábito: se
+       descuenta de lo que queda y se deja FUERA del ritmo diario, porque si no
+       la proyección anuncia un cierre en rojo que nunca va a pasar. */
+    else if(t.tipo==='gasto' && !Engine.esGastoTC(t)){ salio+=v; corriente+=v; }
     else if(t.tipo==='tarjeta') salio+=v;
+    else if(t.tipo==='ahorro') salio+=v;
   });
 
   /* Lo que ya tiene dueño: obligaciones que vencen de hoy al final del ciclo. */
@@ -2019,7 +2023,9 @@ function resumenCiclo(){
   const base = entro>0 ? 'ciclo' : 'saldo';
   const libre = (base==='ciclo' ? entro-salio : disponible) - comprometido;
   const porDia = c.diasRestantes>0 ? libre/c.diasRestantes : libre;
-  return Object.assign({}, c, {entro, salio, comprometido, porPagar, disponible, libre, porDia, base});
+  const ritmo = c.transcurridos>0 ? corriente/c.transcurridos : 0;
+  return Object.assign({}, c, {entro, salio, corriente, ritmo, comprometido, porPagar,
+                               disponible, libre, porDia, base});
 }
 
 function renderCiclo(){
@@ -5414,7 +5420,7 @@ function actualizarResumenNativo(){
   const ciclo = c ? {
     cicloFin:c.fin, cicloDiasRestantes:c.diasRestantes, cicloTranscurridos:c.transcurridos,
     cicloLibre:c.libre, cicloPorDia:c.porDia, cicloSalio:c.salio, cicloEntro:c.entro,
-    cicloRitmo: c.transcurridos>0 ? c.salio/c.transcurridos : 0
+    cicloRitmo: c.ritmo
   } : {};
 
   try{
