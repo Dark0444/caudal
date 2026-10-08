@@ -1131,6 +1131,11 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <label class="f" style="margin:10px 0 0"><span>Días del mes en que te pagan</span>
       <input class="inp" id="cicloDias" type="text" inputmode="numeric" placeholder="15, 28"></label>
     <div class="muted" id="cicloAyuda" style="margin-top:8px;font-size:11.5px"></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+      <span style="font-size:12.5px;font-weight:600">Días que vas al trabajo</span>
+      <div class="muted" style="font-size:11px;margin:3px 0 9px">Esos días gastas distinto (gasolina, almuerzo). Marcarlos hace que la proyección y el margen diario se calculen con tu ritmo real, no con un promedio que no describe ningún día.</div>
+      <div class="chips wrap" id="cicloDiasSemana"></div>
+    </div>
   </div>
 
   <div class="sec-title" style="margin:0 2px 8px"><h2>Respaldo automático<button class="hint" id="respaldoHint" data-hint-title="Respaldo automático" data-hint="Como la app no guarda tus datos en ningún servidor, esta es tu copia de seguridad real: un Excel que se descarga solo a tu teléfono o computadora cada cierto tiempo. Cada archivo lleva la fecha y hora en el nombre, así que vas acumulando versiones. Si algo sale mal, entra a 'Restaurar desde Excel' y elige el archivo que quieras recuperar.">?</button></h2></div>
@@ -1843,7 +1848,12 @@ function renderTransferBancoHint(){
   const d=DB.bancos.find(x=>x.id===$('trTo').value);
   const h=$('transferHint');
   if(d && Engine.esBoveda(d)){
-    h.innerHTML='🔒 Va a tu bóveda. Ese dinero deja de contar como disponible.';
+    const r=resumenCiclo();
+    h.innerHTML='🔒 Va a tu bóveda: deja de contar como disponible.'
+      + (r && r.apartable>0
+          ? ' Hoy puedes apartar hasta <b>'+Engine.format(r.apartable)
+            +'</b> sin quedarte corto para los '+r.diasRestantes+' días que faltan.'
+          : '');
     return;
   }
   if(b && Engine.esBoveda(b)){
@@ -1863,13 +1873,12 @@ function apartarABoveda(destino){
                                    && Engine.bancoValor(b)>0);
   if(!origen){ showToast('No hay saldo en tus cuentas de uso diario'); return; }
 
+  /* Se propone lo máximo que se puede apartar HOY sin quedar corto para los
+     días que faltan, no la meta entera: apartar de más obliga a sacarlo
+     después, y sacar de la bóveda una vez enseña que se puede. */
   const r=resumenCiclo();
-  let sug=0;
-  if(r && r.meta>0){
-    const yaEnBoveda=Engine.enBoveda();
-    sug=Math.max(0, Math.min(r.libre, r.meta));
-  }else if(r){ sug=Math.max(0, r.libre*0.3); }
-  sug=Math.round(sug/10)*10;
+  let sug = r ? r.apartable : 0;
+  sug=Math.floor(sug/10)*10;
 
   poblarSelectsBanco();
   $('trFecha').value=hoy();
@@ -2066,6 +2075,53 @@ function renderIngresosGastos(){
    se ve en rojo aunque todo vaya bien, y se pone verde el 15 por arte de magia.
    Esto mide lo que de verdad importa a diario: desde el último pago hasta el
    siguiente, cuánto queda libre y cuánto toca por día.                      */
+/* ---- Días de oficina ------------------------------------------------------
+   Un promedio plano no describe a nadie que va al trabajo dos días por semana:
+   si los lunes el gasto es veinte veces el de un martes, "puedes gastar Q251 al
+   día" no sirve ni para el lunes ni para el martes. Se calculan dos ritmos. */
+function diasOficina(){
+  DB.config.diasOficina = Array.isArray(DB.config.diasOficina) ? DB.config.diasOficina : [1,5];
+  return DB.config.diasOficina;     // 0=domingo … 6=sábado
+}
+function esDiaOficina(iso){
+  return diasOficina().includes(new Date(iso+'T12:00:00').getDay());
+}
+function gastoCorrienteDe(iso){
+  return DB.transacciones.reduce((a,t)=>
+    (t.tipo==='gasto' && !Engine.esGastoTC(t) && t.fecha===iso) ? a+num(t.monto) : a, 0);
+}
+/** Promedio de gasto corriente en días de oficina y en el resto, con ventana
+    amplia para que cada grupo tenga suficientes días. */
+function ritmosPorTipoDia(hasta,ventana){
+  const fin=hasta||hoy();
+  let ini=fechaMenos(fin, (ventana||44));
+  let primero=null;
+  DB.transacciones.forEach(t=>{ if(t.tipo==='gasto' && (!primero||t.fecha<primero)) primero=t.fecha; });
+  if(primero && primero>ini) ini=primero;
+
+  let sO=0,nO=0,sN=0,nN=0, d=new Date(ini+'T12:00:00'), f=new Date(fin+'T12:00:00');
+  while(d<=f){
+    const iso=fechaISO(d), v=gastoCorrienteDe(iso);
+    if(esDiaOficina(iso)){ sO+=v; nO++; } else { sN+=v; nN++; }
+    d.setDate(d.getDate()+1);
+  }
+  const total=(sO+sN)/Math.max(1,nO+nN);
+  return {
+    oficina: nO>=2 ? sO/nO : total,
+    normal:  nN>=2 ? sN/nN : total,
+    plano: total, diasOficina:nO, diasNormal:nN, fiable: nO>=2 && nN>=2
+  };
+}
+/** Cuánto se espera gastar entre dos fechas, día por día según el tipo. */
+function gastoEsperado(desde,hasta,ritmos){
+  let total=0, d=new Date(desde+'T12:00:00'), f=new Date(hasta+'T12:00:00');
+  while(d<=f){
+    total += esDiaOficina(fechaISO(d)) ? ritmos.oficina : ritmos.normal;
+    d.setDate(d.getDate()+1);
+  }
+  return total;
+}
+
 function cicloCfg(){
   DB.config.ciclo = Object.assign({activo:true, dias:[15,28]}, DB.config.ciclo||{});
   const d=(DB.config.ciclo.dias||[]).map(n=>Math.min(Math.max(Number(n)||1,1),31));
@@ -2159,13 +2215,17 @@ function resumenCiclo(){
   const bruto = base==='ciclo' ? entro-salio : disponible;
   const libre = bruto - comprometido;
   const ritmo = c.transcurridos>0 ? corriente/c.transcurridos : 0;
+  /* Lo que falta por gastar se proyecta día por día, no con un promedio plano:
+     quedan dos lunes o ninguno, y eso cambia el resultado por cientos. */
+  const ritmos = ritmosPorTipoDia(h);
+  const manana = fechaMas(h,1);
+  const restante = c.diasRestantes>0 ? gastoEsperado(manana, c.fin, ritmos) : 0;
 
   /* Lo que se queda si no se gasta un centavo más. Abonar a la tarjeta NO es
      gasto: baja deuda, así que suma al patrimonio igual que dejar el dinero
      quieto, y por eso no se resta aquí. */
   const sinGastarMas = (base==='ciclo' ? entro-corriente : disponible) - comprometido;
-  /* Lo que ya se mandó a la bóveda en este ciclo es ahorro hecho, no gasto. */
-  const proyectado   = sinGastarMas - ritmo*c.diasRestantes;
+  const proyectado   = sinGastarMas - restante;
 
   /* La meta de ahorro del ciclo. Mientras no se fije una, se propone un tercio
      del ingreso, que es una cifra con la que casi siempre se puede. */
@@ -2176,12 +2236,20 @@ function resumenCiclo(){
   /* El gasto diario que SÍ se puede mostrar: el que no toca la meta. Enseñar
      "te quedan X por día" sobre todo el disponible convierte el sobrante en
      permiso de gasto, que es lo contrario de ahorrar. */
-  const margen = Math.max(0, sinGastarMas - meta);
+  /* El techo diario no puede pasar del efectivo que realmente queda: tras
+     apartar dinero a la bóveda, la meta seguiría permitiendo gastar un monto
+     que ya no está en la cuenta. */
+  const margen = Math.min(Math.max(0, sinGastarMas - meta), Math.max(0, libre));
   const porDia = c.diasRestantes>0 ? margen/c.diasRestantes : margen;
+
+  /* Lo máximo que se puede mandar a la bóveda hoy sin quedarse corto: el
+     efectivo libre menos lo que, al ritmo actual, falta por gastar. */
+  const apartable = Math.max(0, libre - restante);
 
   return Object.assign({}, c, {entro, salio, corriente, ritmo, comprometido, porPagar,
                                disponible, libre, base, sinGastarMas, proyectado,
-                               meta, metaFijada:!!metaFijada, margen, porDia});
+                               meta, metaFijada:!!metaFijada, margen, porDia, apartable,
+                               ritmos, restante});
 }
 
 function renderCiclo(){
@@ -2219,11 +2287,20 @@ function renderCiclo(){
     $('cicloMeta').textContent='';
   }
 
-  /* El margen diario se enseña como techo, nunca como presupuesto a repartir. */
+  /* El margen se enseña como techo, nunca como presupuesto a repartir. Y
+     repartido por tipo de día: con dos días de oficina por semana, un número
+     plano no sirve ni para el lunes ni para el martes. */
   if(r.diasRestantes<=0){
     $('cicloPorDia').textContent='Hoy cierra el ciclo.';
   }else if(r.margen<=0){
     $('cicloPorDia').innerHTML='Para llegar a tu meta, de aquí al '+diaMes(r.fin)+' no deberías gastar más.';
+  }else if(r.ritmos.fiable && r.ritmos.oficina>r.ritmos.normal*1.8){
+    /* El margen se reparte en la misma proporción en que se gasta de verdad. */
+    const peso=gastoEsperado(fechaMas(hoy(),1), r.fin, r.ritmos) || 1;
+    const fO=r.margen*(r.ritmos.oficina/peso), fN=r.margen*(r.ritmos.normal/peso);
+    $('cicloPorDia').innerHTML='Te alcanza para <b>'+Engine.format(fO)+'</b> los días que vas al trabajo y <b>'
+      +Engine.format(fN)+'</b> los demás. Es tu propio ritmo: '+Engine.format(r.ritmos.oficina)
+      +' contra '+Engine.format(r.ritmos.normal)+'.';
   }else{
     $('cicloPorDia').innerHTML='Puedes gastar hasta <b>'+Engine.format(r.porDia)+' al día</b> sin bajar de la meta. '
       +'Vas a <b>'+Engine.format(r.ritmo)+'</b>.';
@@ -4319,7 +4396,23 @@ window.toggleNotifPanel = toggleNotifPanel;
 function toggleNotifPanel(){ renderNotifPanel(); renderNotifEstado(); renderNotifPrefs(); openSheet('sheetAlerts'); }
 
 /* ---------- 18. Respaldo Excel ---------- */
+const NOMBRE_DIA=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function renderDiasOficina(){
+  const sel=diasOficina(), c=$('cicloDiasSemana'); if(!c) return;
+  c.innerHTML=[1,2,3,4,5,6,0].map(d=>
+    `<button type="button" class="chip${sel.includes(d)?' on':''}" data-dia="${d}">${NOMBRE_DIA[d]}</button>`).join('');
+  c.querySelectorAll('[data-dia]').forEach(b=>{
+    b.onclick=()=>{
+      const d=Number(b.dataset.dia), lista=diasOficina();
+      const i=lista.indexOf(d);
+      if(i>-1) lista.splice(i,1); else lista.push(d);
+      DB.config.diasOficina=lista.sort((x,y)=>x-y);
+      saveDB(); renderDiasOficina(); renderCiclo(); actualizarResumenNativo(); hap(8);
+    };
+  });
+}
 function renderCicloAjustes(){
+  renderDiasOficina();
   const cfg=cicloCfg();
   $('cicloActivo').checked=!!cfg.activo;
   $('cicloDias').value=cfg.dias.join(', ');
@@ -5766,7 +5859,9 @@ function actualizarResumenNativo(){
   const ciclo = c ? {
     cicloFin:c.fin, cicloDiasRestantes:c.diasRestantes, cicloTranscurridos:c.transcurridos,
     cicloLibre:c.sinGastarMas, cicloPorDia:c.porDia, cicloSalio:c.salio, cicloEntro:c.entro,
-    cicloRitmo: c.ritmo, cicloMeta: c.meta
+    cicloRitmo: c.ritmo, cicloMeta: c.meta, cicloRestante: c.restante,
+    cicloRitmoOficina: c.ritmos.oficina, cicloRitmoNormal: c.ritmos.normal,
+    cicloHoyOficina: esDiaOficina(hoy())
   } : {};
 
   try{

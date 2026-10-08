@@ -221,6 +221,18 @@ public class Avisos {
                     ? "Cierras este periodo con " + moneda(libre) + " sin gastar."
                     : "Hoy cierra el periodo.";
         }
+        /* Un martes de Q50 es mucho; un lunes de Q300 es normal. Juzgar el día
+           contra el promedio del tipo de día que fue, no contra uno plano. */
+        double esperadoHoy = r.optBoolean("cicloHoyOficina", false)
+                ? r.optDouble("cicloRitmoOficina", 0)
+                : r.optDouble("cicloRitmoNormal", 0);
+        String nota = "";
+        if (esperadoHoy > 5 && gastadoHoy > 0) {
+            if (gastadoHoy > esperadoHoy * 1.5)
+                nota = "Para un día así sueles gastar " + moneda(esperadoHoy) + ". ";
+            else if (gastadoHoy < esperadoHoy * 0.6)
+                nota = "Por debajo de tus " + moneda(esperadoHoy) + " de un día así. ";
+        }
         if (libre <= 0) {
             return "Ya no te queda margen para los " + diasTxt(faltan) + " que faltan.";
         }
@@ -229,11 +241,18 @@ public class Avisos {
         }
 
         double meta = r.optDouble("cicloMeta", 0);
-        double cierre = libre - ritmo * faltan;
-        String base = "A este ritmo (" + moneda(ritmo) + " al día) cierras ";
+
+        /* La app deja calculado el gasto que falta día por día, contando cuáles
+           son días de oficina: con un promedio plano, que queden dos lunes o
+           ninguno cambiaba el pronóstico por cientos. */
+        double restante = r.optDouble("cicloRestante", -1);
+        if (restante < 0) restante = ritmo * faltan;
+
+        double cierre = libre - restante;
+        String base = "Al ritmo que llevas cierras ";
 
         if (cierre >= 1) {
-            String txt = base + "con " + moneda(cierre) + " ahorrado.";
+            String txt = nota + base + "con " + moneda(cierre) + " ahorrado.";
             if (meta > 0) {
                 txt += cierre >= meta
                         ? " Tu meta era " + moneda(meta) + "."
@@ -243,10 +262,10 @@ public class Avisos {
             }
             return txt;
         }
-        if (cierre > -1) return base + "justo en cero.";
+        if (cierre > -1) return nota + base + "justo en cero.";
 
         double porDia = libre / faltan;
-        return base + "corto por " + moneda(-cierre) + ". Bajando a " + moneda(porDia)
+        return nota + base + "corto por " + moneda(-cierre) + ". Bajando a " + moneda(porDia)
                 + " al día llegas sin deber.";
     }
 
