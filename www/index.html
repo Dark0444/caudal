@@ -5039,6 +5039,7 @@ function wire(){
   $('pendLista').onclick=e=>{
     const ed=e.target.closest('[data-pend-edit]'); if(ed) return abrirPendEdit(ed.dataset.pendEdit);
     const ok=e.target.closest('[data-pend-ok]');   if(ok) return registrarPendienteDirecto(ok.dataset.pendOk);
+    const no=e.target.closest('[data-pend-no]');   if(no) return descartarPendiente(no.dataset.pendNo);
   };
   $('pendEditForm').onsubmit=guardarPendEdit;
   $('pendMonto').oninput=()=>pintarAvisoArea($('pendCat').value);
@@ -5712,6 +5713,19 @@ function renderPendientes(){
     return;
   }
 
+  /* Segundo cinturón: aunque la huella falle, dos cobros del mismo monto y la
+     misma tarjeta con minutos de diferencia casi siempre son el mismo. No se
+     descartan solos —podrían ser dos compras de verdad— pero se señalan. */
+  const sospechoso=new Set();
+  colaPend.forEach((a,i)=>colaPend.forEach((b,j)=>{
+    if(j<=i || sospechoso.has(b.id)) return;
+    if(Math.abs(num(a.monto)-num(b.monto))>0.009) return;
+    if((a.tarjeta||'')!==(b.tarjeta||'')) return;
+    const ta=num(a.recibido), tb=num(b.recibido);
+    if(ta && tb && Math.abs(ta-tb)>15*60000) return;
+    sospechoso.add(b.id);
+  }));
+
   cont.innerHTML=colaPend.map(p=>{
     const esPago=p.tipo==='pago';
     const banco=bancoPorLast4(p.tarjeta);
@@ -5732,12 +5746,15 @@ function renderPendientes(){
           <span class="muted" style="font-size:11.5px">${detalle}</span>
           ${cat&&!esPago?`<span class="muted" style="font-size:11.5px;display:block">Entrará en ${esc(cat)}</span>`:''}
           ${dudoso?'<span style="font-size:11.5px;color:#FFC46B;display:block">Monto poco claro: revísalo antes de aprobar</span>':''}
+          ${sospechoso.has(p.id)?'<span style="font-size:11.5px;color:#FFC46B;display:block">⚠️ Mismo monto y tarjeta que otro de hace unos minutos. Si solo compraste una vez, descarta este.</span>':''}
         </div>
         <b class="num" style="color:${col};font-size:16px">${Engine.format(p.monto)}</b>
       </div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn ghost" type="button" data-pend-edit="${p.id}" style="margin-top:0">Revisar</button>
-        <button class="btn" type="button" data-pend-ok="${p.id}" style="margin-top:0">Registrar</button>
+        ${sospechoso.has(p.id)
+          ? `<button class="btn danger" type="button" data-pend-no="${p.id}" style="margin-top:0">Descartar</button>`
+          : `<button class="btn" type="button" data-pend-ok="${p.id}" style="margin-top:0">Registrar</button>`}
       </div>
     </div>`;
   }).join('');

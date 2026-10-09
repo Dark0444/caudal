@@ -106,7 +106,9 @@ public class LectorNotificaciones extends NotificationListenerService {
             return;
         }
 
-        JSONObject cobro = Analizador.analizar(titulo, cuerpo, paquete, sbn.getPostTime());
+        String clave = null;
+        try { clave = sbn.getKey(); } catch (Throwable ignored) { }
+        JSONObject cobro = Analizador.analizar(titulo, cuerpo, paquete, sbn.getPostTime(), clave);
         if (cobro == null) {
             Almacen.registrarAppVista(ctx, paquete, etiqueta, true, false);
             Almacen.anotarDiagnostico(ctx, paquete, completo, "sin monto reconocible");

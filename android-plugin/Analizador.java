@@ -68,6 +68,16 @@ public class Analizador {
      *         hora, autorizacion, huella, confianza (alta|revisar), vencimiento.
      */
     public static JSONObject analizar(String titulo, String texto, String paquete, long cuando) {
+        return analizar(titulo, texto, paquete, cuando, null);
+    }
+
+    /**
+     * @param clave identificador que Android le da a la notificación. Se usa
+     *              como huella cuando el aviso no trae número de autorización:
+     *              Google Wallet reposta la MISMA notificación minutos después
+     *              y, sin esto, el segundo aviso parecía un cobro nuevo.
+     */
+    public static JSONObject analizar(String titulo, String texto, String paquete, long cuando, String clave) {
         String t = ((titulo == null ? "" : titulo) + " " + (texto == null ? "" : texto)).trim();
         if (t.length() < 8) return null;
 
@@ -123,6 +133,20 @@ public class Analizador {
                 m = COMERCIO_GENERICO.matcher(t);
                 if (m.find()) comercio = limpiarComercio(m.group(1));
             }
+            /* Google Wallet pone el comercio en el título y el monto en el
+               cuerpo: "ASOCIACION SOLIDARISTA" / "GTQ10.00 con DEBITO ••3377".
+               Si no se encontró comercio de otro modo y el título no es un
+               encabezado genérico, el título ES el comercio. */
+            if (comercio.isEmpty() && !esPago && titulo != null) {
+                String tt = titulo.trim();
+                String bajo = tt.toLowerCase(Locale.ROOT);
+                boolean generico = tt.length() < 3 || tt.length() > 60
+                        || MONTO_CLARO.matcher(tt).find()
+                        || bajo.startsWith("consumo") || bajo.startsWith("compra")
+                        || bajo.startsWith("pago") || bajo.startsWith("transacc")
+                        || bajo.contains("notificaci");
+                if (!generico) comercio = limpiarComercio(tt);
+            }
             r.put("comercio", comercio);
 
             /* ---- Fecha y hora reales del cobro ---- */
@@ -148,9 +172,19 @@ public class Analizador {
             m = AUTORIZACION.matcher(t);
             String aut = m.find() ? m.group(1) : "";
             r.put("autorizacion", aut);
-            r.put("huella", !aut.isEmpty()
-                    ? "aut:" + aut
-                    : String.format(Locale.US, "m:%.2f:%s:%s", monto, tarjeta, fecha + " " + hora));
+
+            /* El número de autorización identifica la transacción sin lugar a
+               dudas. Cuando no viene —Google Wallet no lo manda— se usa la
+               clave de la notificación junto al monto: si la app repostea el
+               mismo aviso, la clave es idéntica y no se duplica; si de verdad
+               es otra compra, Android le da otra clave. El minuto NO sirve de
+               huella: una notificación actualizada llega con otro minuto. */
+            String huella;
+            if (!aut.isEmpty()) huella = "aut:" + aut;
+            else if (clave != null && !clave.isEmpty())
+                huella = String.format(Locale.US, "k:%s:%.2f", clave, monto);
+            else huella = String.format(Locale.US, "m:%.2f:%s:%s", monto, tarjeta, fecha + " " + hora);
+            r.put("huella", huella);
 
             /* ---- Vencimiento de la tarjeta, cuando el aviso lo trae ---- */
             m = VENCIMIENTO.matcher(t);
