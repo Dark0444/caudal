@@ -2197,9 +2197,27 @@ function cicloActual(){
   });
   marcas.sort((x,y)=>x-y);
 
+  /* El día de pago no siempre cae donde dice el calendario: si el 15 es
+     domingo, el banco paga el 14. Cuando hay un ingreso de verdad a pocos días
+     de la marca, manda la fecha del ingreso — si no, el sueldo queda del lado
+     del ciclo anterior y el nuevo arranca en rojo diciendo que no hay ingreso. */
+  const TOL=3*86400000;
+  const ingresos=DB.transacciones.filter(t=>t.tipo==='ingreso' && num(t.monto)>0);
+  const ajustadas=marcas.map(mk=>{
+    let mejor=null, mejorMonto=0;
+    ingresos.forEach(t=>{
+      const d=new Date(t.fecha+'T12:00:00');
+      if(Math.abs(d-mk)>TOL) return;
+      const v=num(t.monto);
+      if(v>mejorMonto){ mejorMonto=v; mejor=d; }
+    });
+    /* Solo un ingreso de peso mueve la marca: una devolución de Q9 no. */
+    return (mejor && mejorMonto>=300) ? mejor : mk;
+  }).sort((x,y)=>x-y);
+
   let ini=null,sig=null;
-  for(let i=0;i<marcas.length;i++){
-    if(marcas[i]<=hoyD){ ini=marcas[i]; sig=marcas[i+1]||null; }
+  for(let i=0;i<ajustadas.length;i++){
+    if(ajustadas[i]<=hoyD){ ini=ajustadas[i]; sig=ajustadas[i+1]||null; }
   }
   if(!ini||!sig) return null;
   const fin=new Date(sig.getTime()-86400000);
