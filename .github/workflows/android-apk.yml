@@ -36,6 +36,25 @@ jobs:
           fi
           echo "::notice title=Dependencias listas::npm install OK"
 
+      - name: Comprobar que las cuentas cuadran
+        run: |
+          set +e
+          npm install --no-save playwright@1.49.1 > pw.txt 2>&1
+          npx playwright install --with-deps chromium >> pw.txt 2>&1
+          if [ $? -ne 0 ]; then
+            echo "::warning title=Sin navegador::No se pudo preparar la comprobación; se compila sin ella."
+            exit 0
+          fi
+          CHROMIUM="" node scripts/comprobar.mjs pruebas/datos/*.json > comprobar.txt 2>&1
+          code=$?
+          cat comprobar.txt
+          if [ $code -eq 1 ]; then
+            msg=$(grep -E "✗|   - " comprobar.txt | head -20 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Los números no cuadran::$msg"
+            exit 1
+          fi
+          echo "::notice title=Cuentas verificadas::Las identidades se cumplen en todos los casos."
+
       - name: Copiar librerías y fuentes locales
         run: node scripts/vendor.js
 

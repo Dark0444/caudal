@@ -1,0 +1,759 @@
+{
+ "transacciones": [
+  {
+   "id": "muafmrg9qzi6b",
+   "fecha": "2026-09-20",
+   "monto": 1740.0,
+   "tipo": "gasto",
+   "descripcion": "DEUDA TC ACTUAL",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "GASTOS TC",
+   "esTC": true
+  },
+  {
+   "id": "muamc0lqn4q2d",
+   "fecha": "2026-09-20",
+   "monto": 200.0,
+   "tipo": "gasto",
+   "descripcion": "La torre cena fsmiliar",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "GASTOS TC",
+   "esTC": true
+  },
+  {
+   "id": "mubjfcuui3aqv",
+   "fecha": "2026-09-21",
+   "monto": 206.0,
+   "tipo": "gasto",
+   "descripcion": "Desodorantes angie y espemuma",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Supermercado",
+   "esTC": false
+  },
+  {
+   "id": "mud9poaisitz9",
+   "fecha": "2026-09-22",
+   "monto": 51.0,
+   "tipo": "gasto",
+   "descripcion": "No almorzado yo hambre",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "muftizna2ei9j",
+   "fecha": "2026-09-24",
+   "monto": 80.0,
+   "tipo": "gasto",
+   "descripcion": "Server minecraft",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "muh6s2ci89mfc",
+   "fecha": "2026-09-25",
+   "monto": 18.0,
+   "tipo": "gasto",
+   "descripcion": "Desayuno promerica",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "muhewwrxwmd8t",
+   "fecha": "2026-09-25",
+   "monto": 51.0,
+   "tipo": "gasto",
+   "descripcion": "Tscobell",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "muhgzj9nbl59l",
+   "fecha": "2026-09-25",
+   "monto": 35.0,
+   "tipo": "gasto",
+   "descripcion": "Internet",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "internet",
+   "esTC": false
+  },
+  {
+   "id": "muk51t2ow27eg",
+   "fecha": "2026-09-27",
+   "monto": 54.0,
+   "tipo": "gasto",
+   "descripcion": "Netflix",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Multimedia",
+   "esTC": false
+  },
+  {
+   "id": "muk5467g7kkrw",
+   "fecha": "2026-09-27",
+   "monto": 25.0,
+   "tipo": "gasto",
+   "descripcion": "Seguros banco",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Seguros banco",
+   "esTC": true
+  },
+  {
+   "id": "mul3pyohl8mhq",
+   "fecha": "2026-09-28",
+   "monto": 350.0,
+   "tipo": "gasto",
+   "descripcion": "2 subidas",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Gasolina",
+   "esTC": true
+  },
+  {
+   "id": "mul4f5irhyy06",
+   "fecha": "2026-09-28",
+   "monto": 277.0,
+   "tipo": "tarjeta",
+   "descripcion": "Pago gasolina 277 de 350",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Tarjeta",
+   "tarjetaId": "muafk5j24uozi"
+  },
+  {
+   "id": "mulgn6gi4xcha",
+   "fecha": "2026-09-28",
+   "monto": 16.0,
+   "tipo": "gasto",
+   "descripcion": "Desayuno",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Almuerzos promerica",
+   "esTC": true
+  },
+  {
+   "id": "mulo19o4a7tul",
+   "fecha": "2026-09-28",
+   "monto": 4200.0,
+   "tipo": "ingreso",
+   "descripcion": "2do Pago septiembre",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Ingreso"
+  },
+  {
+   "id": "mulo3y67tn4a2",
+   "fecha": "2026-09-28",
+   "monto": 46.0,
+   "tipo": "gasto",
+   "descripcion": "Almuerzo subway",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Almuerzos promerica",
+   "esTC": true
+  },
+  {
+   "id": "mulpakavv2c50",
+   "fecha": "2026-09-28",
+   "monto": 1000.0,
+   "tipo": "tarjeta",
+   "descripcion": "Pago tc con mi segundo sueldo de sep",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Tarjeta",
+   "tarjetaId": "muafk5j24uozi"
+  },
+  {
+   "id": "mulssgyvmy6nb",
+   "fecha": "2026-09-28",
+   "monto": 300.0,
+   "tipo": "gasto",
+   "descripcion": "Gastos mamá Lissette",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Obligaciones",
+   "esTC": false,
+   "obligacionId": "muaftg5h4xjgq"
+  },
+  {
+   "id": "mulssww8vvj8u",
+   "fecha": "2026-09-28",
+   "monto": 200.0,
+   "tipo": "gasto",
+   "descripcion": "INTERNET TIGO",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Obligaciones",
+   "esTC": false,
+   "obligacionId": "muafuoqi814l4"
+  },
+  {
+   "id": "mum1c8y9x3oal",
+   "fecha": "2026-09-28",
+   "monto": 40.0,
+   "tipo": "gasto",
+   "descripcion": "2 calzones dominos",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "munqo5553w0t4",
+   "fecha": "2026-09-30",
+   "monto": 32.0,
+   "tipo": "gasto",
+   "descripcion": "Taconartes cena",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "mur2sddzx9rgl",
+   "fecha": "2026-10-02",
+   "monto": 10.0,
+   "tipo": "gasto",
+   "descripcion": "Almuerzos promerica",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "murehxa4wfo37",
+   "fecha": "2026-10-02",
+   "monto": 88.0,
+   "tipo": "gasto",
+   "descripcion": "Tacos de asada",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "muu4ph91kuspz",
+   "fecha": "2026-10-04",
+   "monto": 9.0,
+   "tipo": "ingreso",
+   "descripcion": "Ingreso",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Ingreso"
+  },
+  {
+   "id": "muumtro8nalgo",
+   "fecha": "2026-10-04",
+   "monto": 112.0,
+   "tipo": "gasto",
+   "descripcion": "Juegos steam",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Multimedia",
+   "esTC": true
+  },
+  {
+   "id": "muvi6x21rcgv2",
+   "fecha": "2026-10-05",
+   "monto": 20.0,
+   "tipo": "gasto",
+   "descripcion": "Pan",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "muvi7rjr0ny37",
+   "fecha": "2026-10-05",
+   "monto": 300.0,
+   "tipo": "gasto",
+   "descripcion": "Gasolina 2 viajes",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Gasolina",
+   "esTC": false
+  },
+  {
+   "id": "muvmxxil8mmk2",
+   "fecha": "2026-10-05",
+   "monto": 46.0,
+   "tipo": "gasto",
+   "descripcion": "Subway",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "muvmy9nz9nid7",
+   "fecha": "2026-10-05",
+   "monto": 35.0,
+   "tipo": "gasto",
+   "descripcion": "Internet",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "internet",
+   "esTC": false
+  },
+  {
+   "id": "muw15co7rc813",
+   "fecha": "2026-10-05",
+   "monto": 20.0,
+   "tipo": "gasto",
+   "descripcion": "Guayos",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Farmacia",
+   "esTC": false
+  },
+  {
+   "id": "muyia4qtx24s8",
+   "fecha": "2026-10-07",
+   "monto": 51.0,
+   "tipo": "gasto",
+   "descripcion": "Tacobell ya no aguantaba el hambre",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "muyzgx0zhjnve",
+   "fecha": "2026-10-07",
+   "monto": 9.31,
+   "tipo": "gasto",
+   "descripcion": "WL *Steam Purchase 425-8899642",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Multimedia",
+   "esTC": true,
+   "origenAuto": "415309"
+  },
+  {
+   "id": "muz3k0tsmbvud",
+   "fecha": "2026-10-07",
+   "monto": 11.1,
+   "tipo": "gasto",
+   "descripcion": "STEAMGAMES.COM 4259522985912-1844160",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Multimedia",
+   "esTC": true,
+   "origenAuto": "592746"
+  },
+  {
+   "id": "muz3lqa3oxmdv",
+   "fecha": "2026-10-07",
+   "monto": 79.61,
+   "tipo": "gasto",
+   "descripcion": "STEAMGAMES.COM 4259522985912-1844160",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Multimedia",
+   "esTC": true,
+   "origenAuto": "446601"
+  },
+  {
+   "id": "mv181wkrdbq3t",
+   "fecha": "2026-10-09",
+   "monto": 13.5,
+   "tipo": "gasto",
+   "descripcion": "Compra",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "mv182mgu8p17o",
+   "fecha": "2026-10-09",
+   "monto": 10.0,
+   "tipo": "gasto",
+   "descripcion": "Compra",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "mv1dygmph76vq",
+   "fecha": "2026-10-09",
+   "monto": 79.8,
+   "tipo": "gasto",
+   "descripcion": "LAI LAI LOS PROCER",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Almuerzos promerica",
+   "esTC": false
+  },
+  {
+   "id": "mv1x96uiiusou",
+   "fecha": "2026-10-09",
+   "monto": 50.0,
+   "tipo": "gasto",
+   "descripcion": "BURGER KING R61 SAN LUCAS",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "mv5o4ybw5tpcr",
+   "fecha": "2026-10-12",
+   "monto": 177.25,
+   "tipo": "gasto",
+   "descripcion": "COMBUSTIBLES DE CONFIANZA",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Gasolina",
+   "esTC": false
+  },
+  {
+   "id": "mv5rlsapirqh3",
+   "fecha": "2026-10-12",
+   "monto": 329.0,
+   "tipo": "gasto",
+   "descripcion": "ECONOPACA CHIMALTENANGO CHIMALTENANGO",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Sin categoría",
+   "esTC": true,
+   "origenAuto": "897745"
+  },
+  {
+   "id": "mv5seivol1avp",
+   "fecha": "2026-10-12",
+   "monto": 121.0,
+   "tipo": "gasto",
+   "descripcion": "DOMINOS 14059 CHIMALTENAN",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Sin categoría",
+   "esTC": false
+  },
+  {
+   "id": "mv5x9bomh3ae7",
+   "fecha": "2026-10-12",
+   "monto": 299.0,
+   "tipo": "gasto",
+   "descripcion": "GYKS ACCESORIOS CHIMALTEN",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Sin categoría",
+   "esTC": false
+  },
+  {
+   "id": "mv8ccz3bqpxmy",
+   "fecha": "2026-10-13",
+   "monto": 56.0,
+   "tipo": "gasto",
+   "descripcion": "POLLO CAMPERO 715",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Sin categoría",
+   "esTC": false
+  },
+  {
+   "id": "mv8cesatj51oi",
+   "fecha": "2026-10-14",
+   "monto": 39.12,
+   "tipo": "gasto",
+   "descripcion": "Google one",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Multimedia",
+   "esTC": false
+  },
+  {
+   "id": "mv8cgclldkclm",
+   "fecha": "2026-10-14",
+   "monto": 51.0,
+   "tipo": "gasto",
+   "descripcion": "Uber eats",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "mv8d7u7bj4xgm",
+   "fecha": "2026-10-14",
+   "monto": 4497.8,
+   "tipo": "ingreso",
+   "descripcion": "Ingreso 1r pago de octubre",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Ingreso"
+  },
+  {
+   "id": "mv9rzbirbsd3w",
+   "fecha": "2026-10-15",
+   "monto": 39.9,
+   "tipo": "gasto",
+   "descripcion": "Hbo max cancelado ya",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Multimedia",
+   "esTC": false
+  },
+  {
+   "id": "mv9s3onsiluna",
+   "fecha": "2026-10-15",
+   "monto": 300.0,
+   "tipo": "gasto",
+   "descripcion": "Gastos mamá Lissette",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Obligaciones",
+   "esTC": false,
+   "obligacionId": "muaftg5h4xjgq"
+  },
+  {
+   "id": "mv9s4pn62sjp6",
+   "fecha": "2026-10-15",
+   "monto": 800.0,
+   "tipo": "tarjeta",
+   "descripcion": "Pago a tarjeta",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Tarjeta",
+   "tarjetaId": "muafk5j24uozi"
+  },
+  {
+   "id": "mvbobl7voadiz",
+   "fecha": "2026-10-15",
+   "monto": 156.4,
+   "tipo": "gasto",
+   "descripcion": "ANTHROPIC* CLAUDE SUB",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Multimedia",
+   "esTC": true,
+   "origenAuto": "210904"
+  },
+  {
+   "id": "mvboc0thw58pj",
+   "fecha": "2026-10-16",
+   "monto": 300.0,
+   "tipo": "gasto",
+   "descripcion": "Le di a mama para su examen",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Farmacia",
+   "esTC": false
+  },
+  {
+   "id": "mvd1wn77cwsfe",
+   "fecha": "2026-10-17",
+   "monto": 37.05,
+   "tipo": "gasto",
+   "descripcion": "SUPERMERCADOS LA TORRE AN",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Sin categoría",
+   "esTC": false
+  },
+  {
+   "id": "mvfvvd8v35jp5",
+   "fecha": "2026-10-17",
+   "monto": 78.12,
+   "tipo": "gasto",
+   "descripcion": "WL *STEAM PURCHASE 425-889-9642",
+   "bancoId": "muafk5j24uozi",
+   "categoria": "Multimedia",
+   "esTC": true,
+   "origenAuto": "80631"
+  },
+  {
+   "id": "mvfvvd9pceh6u",
+   "fecha": "2026-10-18",
+   "monto": 183.7,
+   "tipo": "gasto",
+   "descripcion": "LAS CREPAS DEL ANGEL",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Sin categoría",
+   "esTC": false
+  },
+  {
+   "id": "mvfvx46ki4hgh",
+   "fecha": "2026-10-19",
+   "monto": 56.47,
+   "tipo": "gasto",
+   "descripcion": "1 envío mal de uber",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "mvfvxpu5n6ivz",
+   "fecha": "2026-10-19",
+   "monto": 56.48,
+   "tipo": "gasto",
+   "descripcion": "2do envío hoy si llego la comida",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "mvfw0g1b5jw4d",
+   "fecha": "2026-10-19",
+   "monto": 17.0,
+   "tipo": "gasto",
+   "descripcion": "GUSTOS SOLO (YO)",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  },
+  {
+   "id": "mvfwcznl9leiy",
+   "fecha": "2026-10-19",
+   "monto": 2790.0,
+   "tipo": "transfer",
+   "descripcion": "Transferencia entre cuentas",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "Transferencia",
+   "bancoDestinoId": "muafhseavwxzy"
+  },
+  {
+   "id": "mviql0bk5s49n",
+   "fecha": "2026-10-21",
+   "monto": 56.45,
+   "tipo": "gasto",
+   "descripcion": "GUSTOS SOLO (YO)",
+   "bancoId": "muafg23avd0xd",
+   "categoria": "GUSTOS SOLO (YO)",
+   "esTC": false
+  }
+ ],
+ "bancos": [
+  {
+   "id": "muafg23avd0xd",
+   "color": "#4ADE80",
+   "icono": "🏦",
+   "nombre": "PROMERICA",
+   "tipo": "ahorro",
+   "saldoInicial": 772.0,
+   "deudaInicial": 0.0,
+   "limite": 0.0,
+   "last4": "3377"
+  },
+  {
+   "id": "muafhseavwxzy",
+   "color": "#F87171",
+   "icono": "🏦",
+   "nombre": "G&T",
+   "tipo": "ahorro",
+   "saldoInicial": 1869.0,
+   "deudaInicial": 0.0,
+   "limite": 0.0,
+   "boveda": true
+  },
+  {
+   "id": "muafjewfj7wf4",
+   "color": "#5FC5FF",
+   "icono": "🏦",
+   "nombre": "HINDUSTRIAL",
+   "tipo": "ahorro",
+   "saldoInicial": 18.0,
+   "deudaInicial": 0.0,
+   "limite": 0.0,
+   "last4": "7891"
+  },
+  {
+   "id": "muafk5j24uozi",
+   "color": "#2DD4BF",
+   "icono": "💳",
+   "nombre": "Tc PROMERICA",
+   "tipo": "credito",
+   "saldoInicial": 0.0,
+   "deudaInicial": 0.0,
+   "limite": 4000.0,
+   "last4": "8240"
+  }
+ ],
+ "categorias": [
+  {
+   "id": "muafls6mdmjsz",
+   "icono": "🧾",
+   "limite": 0.0,
+   "nombre": "GASTOS TC"
+  },
+  {
+   "id": "muafsk72w1qbe",
+   "icono": "🚗",
+   "limite": 0.0,
+   "nombre": "MAMA LISSET"
+  },
+  {
+   "id": "mubjekiljkqie",
+   "icono": "🛒",
+   "limite": 0.0,
+   "nombre": "Supermercado"
+  },
+  {
+   "id": "mud9oxq1danii",
+   "icono": "🧾",
+   "limite": 0.0,
+   "nombre": "GUSTOS SOLO (YO)"
+  },
+  {
+   "id": "mud9pb178hltk",
+   "icono": "🧾",
+   "limite": 0.0,
+   "nombre": "GUSTOS (YO Y ANGIE)"
+  },
+  {
+   "id": "muh6rqaokhrse",
+   "icono": "🍽️",
+   "limite": 0.0,
+   "nombre": "Almuerzos promerica"
+  },
+  {
+   "id": "muhgz874xkvl8",
+   "icono": "🧾",
+   "limite": 0.0,
+   "nombre": "internet"
+  },
+  {
+   "id": "muk4zhxvpzera",
+   "icono": "🏥",
+   "limite": 0.0,
+   "nombre": "Seguros banco"
+  },
+  {
+   "id": "muk51hua5a622",
+   "icono": "🎬",
+   "limite": 0.0,
+   "nombre": "Multimedia"
+  },
+  {
+   "id": "mul3pir40hpux",
+   "icono": "🚗",
+   "limite": 0.0,
+   "nombre": "Gasolina",
+   "fijo": true
+  },
+  {
+   "id": "muz55jukmsfyo",
+   "icono": "💊",
+   "limite": 0.0,
+   "nombre": "Farmacia"
+  }
+ ],
+ "obligaciones": [
+  {
+   "id": "muaftg5h4xjgq",
+   "icono": "🚗",
+   "tipo": "gasto",
+   "dia": 14,
+   "nombre": "Gastos mamá Lissette",
+   "monto": 300.0,
+   "fecha": "2026-10-14",
+   "repite": true
+  },
+  {
+   "id": "muafuoqi814l4",
+   "icono": "📶",
+   "tipo": "gasto",
+   "dia": 28,
+   "nombre": "INTERNET TIGO",
+   "monto": 200.0,
+   "fecha": "2026-09-28",
+   "repite": true
+  }
+ ],
+ "metas": [
+  {
+   "id": "muafqv2zufwld",
+   "actual": 0.0,
+   "icono": "🎓",
+   "aporte": 0.0,
+   "redondeo": false,
+   "aparteIngresoPct": 0.0,
+   "nombre": "Educación",
+   "objetivo": 7000.0
+  }
+ ],
+ "recurrentes": [],
+ "alertas": [],
+ "reportes": [],
+ "config": {
+  "notifPrefs": {},
+  "comercios": {},
+  "iconosComercio": {},
+  "ciclo": {
+   "activo": true,
+   "dias": [
+    15,
+    28
+   ],
+   "meta": 1350
+  },
+  "diasOficina": [
+   1,
+   5
+  ]
+ }
+}

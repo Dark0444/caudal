@@ -1126,6 +1126,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   <div class="grab"></div>
   <h3>Ajustes y respaldo</h3>
   <p class="sub">Tus datos viven solo en este dispositivo.</p>
+  <div id="avisoCoherencia"></div>
   <div class="card tight" style="margin-bottom:14px">
     <div class="minirow"><span>Movimientos</span><b class="num" id="stTx">0</b></div>
     <div class="minirow"><span>Cuentas</span><b class="num" id="stBancos">0</b></div>
@@ -4553,6 +4554,22 @@ function renderDiasOficina(){
     };
   });
 }
+/* Si las cuentas no cuadran entre sí, hay que decirlo donde se vea, no
+   esconderlo en la consola. */
+function pintarCoherencia(){
+  const caja=$('avisoCoherencia'); if(!caja) return;
+  const fallos=comprobarCoherencia();
+  if(!fallos.length){
+    caja.innerHTML='<div class="muted" style="font-size:11px;margin-bottom:10px">✓ Las cuentas cuadran entre sí.</div>';
+    return;
+  }
+  caja.innerHTML='<div class="card tight" style="margin-bottom:14px;border-color:rgba(255,107,129,.5);'
+    +'background:rgba(255,107,129,.08)"><div style="font-weight:700;font-size:12.5px">⚠ Hay números que no cuadran</div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.6">'
+    +fallos.map(f=>'• '+esc(f)).join('<br>')
+    +'</div><div class="muted" style="font-size:11px;margin-top:8px">Mándame esto: es un error de cálculo, no tuyo.</div></div>';
+}
+
 function renderCicloAjustes(){
   renderDiasOficina();
   const cfg=cicloCfg();
@@ -4575,6 +4592,7 @@ function guardarCicloAjustes(){
 function openAdminPanel(){
   mostrarVersionApp();
   renderCicloAjustes();
+  pintarCoherencia();
   $('stTx').textContent=DB.transacciones.length;
   $('stBancos').textContent=DB.bancos.length;
   $('stCats').textContent=DB.categorias.length;
@@ -5995,6 +6013,79 @@ async function descartarPendiente(id){
 }
 
 /* ---------- Resumen que alimenta los avisos de la noche ---------- */
+/* ---- Comprobación de coherencia -------------------------------------------
+   Un mismo quetzal aparece en seis pantallas distintas, y cada vez que cambia
+   la forma de clasificar un movimiento —la bóveda, los gastos fijos, lo
+   apartado— es fácil arreglarlo en una y romperlo en otra. Eso ya pasó tres
+   veces: lo guardado en la bóveda se contó como abono a la tarjeta, luego como
+   gasto del ciclo, luego como pérdida del mes.
+
+   Esto comprueba las identidades que SIEMPRE deben cumplirse, con los datos
+   reales de quien usa la app. Si una falla, es un error de cálculo y hay que
+   verlo, no esperar a que alguien lo note en una captura.                   */
+function comprobarCoherencia(){
+  const fallos=[];
+  const cerca=(a,b,q=0.02)=>Math.abs(num(a)-num(b))<=q;
+  const F=n=>Engine.format(n);
+
+  try{
+    /* 1. El patrimonio es exactamente lo disponible más lo guardado. */
+    const disp=Engine.disponibleTotal(), bov=Engine.enBoveda(), pat=Engine.patrimonioTotal();
+    const suma=disp+bov+Engine.enPlanes();
+    /* patrimonioTotal recorta a cero: si la suma es negativa el total no puede
+       cuadrar, y lo que hay que avisar es la cuenta en rojo, no la resta. */
+    if(suma>=0 && !cerca(suma, pat))
+      fallos.push(`Patrimonio ${F(pat)} ≠ disponible ${F(disp)} + bóveda ${F(bov)} + planes ${F(Engine.enPlanes())}`);
+    DB.bancos.filter(b=>b.tipo!=='credito' && Engine.bancoValor(b)<-0.02).forEach(b=>
+      fallos.push(`${b.nombre} está en ${F(Engine.bancoValor(b))}: hay movimientos de más o falta registrar un ingreso`));
+
+    /* 2. El saldo de cada cuenta es su saldo inicial más sus movimientos. */
+    DB.bancos.filter(b=>b.tipo!=='credito').forEach(b=>{
+      let v=num(b.saldoInicial);
+      DB.transacciones.forEach(t=>{
+        const m=num(t.monto);
+        if(t.bancoId===b.id){
+          if(t.tipo==='ingreso') v+=m;
+          else if(t.tipo==='gasto' && !Engine.esGastoTC(t)) v-=m;
+          else if(t.tipo==='tarjeta'||t.tipo==='ahorro'||t.tipo==='transfer') v-=m;
+          else if(t.tipo==='retiro') v+=m;
+        }
+        if(t.bancoDestinoId===b.id && (t.tipo==='transfer'||t.tipo==='retiro')) v+=m;
+      });
+      if(!cerca(v, Engine.bancoValor(b)))
+        fallos.push(`${b.nombre}: la app muestra ${F(Engine.bancoValor(b))} y los movimientos dan ${F(v)}`);
+    });
+
+    /* 3. El neto del mes no puede castigar el ahorro: si entró más de lo que
+          se gastó y se abonó, tiene que salir positivo. */
+    const m=mesActualSistema(), t=Engine.recalculate(m);
+    if(!cerca(t.neto, t.ingresos-t.gastos-t.tarjeta+t.retiros-(t.ahorros-t.apartado)))
+      fallos.push(`Neto del mes ${F(t.neto)} no cuadra con ingresos − gastos − tarjeta`);
+    if(t.ingresos>t.gastos+t.tarjeta && t.neto<0)
+      fallos.push(`Neto en rojo (${F(t.neto)}) con ingresos ${F(t.ingresos)} mayores que las salidas`);
+
+    /* 4. El ciclo: lo libre nunca puede pasar del efectivo que existe, ni el
+          techo diario del dinero que lo respalda. */
+    const r=resumenCiclo();
+    if(r){
+      if(r.libre > Engine.disponibleTotal()+0.02)
+        fallos.push(`El ciclo dice ${F(r.libre)} libres y solo hay ${F(Engine.disponibleTotal())} en cuentas`);
+      if(r.libre>0 && r.margen > r.libre+0.02)
+        fallos.push(`Margen ${F(r.margen)} mayor que lo libre ${F(r.libre)}`);
+      if(!cerca(r.salio, r.corriente+r.fijo+r.aTarjeta+r.aBoveda))
+        fallos.push(`Las salidas del ciclo (${F(r.salio)}) no son la suma de sus partes`);
+      /* Guardar o abonar nunca debe empeorar el ahorro proyectado. */
+      if(r.entro>0 && !cerca(r.sinGastarMas, r.entro-r.corriente-r.fijo-r.comprometido))
+        fallos.push(`El ahorro del ciclo no sale de ingreso − gasto − comprometido`);
+    }
+  }catch(e){ fallos.push('La comprobación falló: '+e.message); }
+
+  DB.config.ultimaComprobacion={cuando:new Date().toISOString(), fallos};
+  if(fallos.length) console.warn('Caudal · incoherencias:\n- '+fallos.join('\n- '));
+  return fallos;
+}
+window.comprobarCoherencia = comprobarCoherencia;
+
 function actualizarResumenNativo(){
   const N=nativoCaudal(); if(!N) return;
   const h=hoy();
