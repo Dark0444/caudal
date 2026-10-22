@@ -18,6 +18,15 @@ Esto comprueba las identidades que siempre deben cumplirse:
 - Lo libre del ciclo nunca pasa del efectivo que existe.
 - El techo diario nunca pasa de lo libre.
 - Las salidas del ciclo son la suma exacta de sus partes.
+- **Lo que la pantalla muestra coincide con los datos crudos**: el patrimonio,
+  el neto del mes, el flujo del ciclo y el porcentaje de la salud financiera se
+  leen del DOM y se contrastan contra los movimientos.
+
+Esa última es la que de verdad importa y la que faltaba al principio. Las otras
+rehacen la cuenta con las mismas fórmulas que la app, así que no pueden
+descubrir que una fórmula esté mal: la salud financiera decía "gastaste el 105%
+de lo que te entró" a quien había gastado el 25%, y ninguna identidad interna lo
+notaba porque el error estaba en la fórmula misma.
 
 ## Cómo se usa
 

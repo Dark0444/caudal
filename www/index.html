@@ -1983,8 +1983,11 @@ function renderDashboard(){
   /* La salud se mide sobre el ciclo cuando lo hay: por mes calendario, del 1 al
      14 sale "gastaste el 6333% de lo que ingresaste" porque el sueldo entró el
      28 y cuenta en el mes pasado. El número era correcto y la lectura, falsa. */
-  const tSalud = rc ? {ingresos:rc.entro, gastos:rc.corriente,
-                       tarjeta:rc.salio-rc.corriente, ahorros:0, retiros:0, neto:0} : t;
+  /* La salud mide qué proporción del ingreso se CONSUMIÓ. Guardar en la bóveda
+     no es consumo: contarlo daba "gastaste el 105% de lo que te entró" a quien
+     había gastado el 25% y guardado el resto. Y el ahorro suma, no resta. */
+  const tSalud = rc ? {ingresos:rc.entro, gastos:rc.corriente+rc.fijo,
+                       tarjeta:rc.aTarjeta, ahorros:rc.aBoveda, retiros:0, neto:0} : t;
   const hs=Engine.healthScore(tSalud), arc=$('ringArc'), C=2*Math.PI*41;
   const periodo = rc ? 'en este ciclo' : 'este mes';
   if(hs===null){
@@ -6077,6 +6080,51 @@ function comprobarCoherencia(){
       /* Guardar o abonar nunca debe empeorar el ahorro proyectado. */
       if(r.entro>0 && !cerca(r.sinGastarMas, r.entro-r.corriente-r.fijo-r.comprometido))
         fallos.push(`El ahorro del ciclo no sale de ingreso − gasto − comprometido`);
+
+    }
+
+    /* 5. Y lo más importante: lo que la PANTALLA dice.
+       Las comprobaciones de arriba rehacen la cuenta con las mismas fórmulas
+       que la app, así que no pueden descubrir que una fórmula esté mal. Esto
+       lee los números tal como se muestran y los contrasta con los datos
+       crudos. Fue lo que faltó: la salud financiera decía "gastaste el 105% de
+       lo que te entró" a quien había gastado el 25%, y ninguna identidad
+       interna lo notaba porque el error estaba en la fórmula misma. */
+    const texto=id=>{ const e=$(id); return e?e.textContent:''; };
+    const cifra=t=>{ const m=String(t).replace(/[^0-9.,-]/g,'').replace(/,/g,''); const v=parseFloat(m); return isFinite(v)?v:null; };
+    const r2=resumenCiclo();
+
+    if(r2 && r2.entro>0){
+      const consumido=r2.corriente+r2.fijo+r2.aTarjeta;
+      const real=Math.round(consumido/r2.entro*100);
+      const m=/(\d+)%/.exec(texto('hsMsg'));
+      if(m && Math.abs(Number(m[1])-real)>1)
+        fallos.push(`La pantalla dice ${m[1]}% consumido y los datos dan ${real}% (${F(consumido)} de ${F(r2.entro)})`);
+      const hs=cifra(texto('hsNum'));
+      if(hs!==null && consumido<r2.entro*0.5 && hs<50)
+        fallos.push(`Salud ${hs}/100 habiendo consumido solo ${F(consumido)} de ${F(r2.entro)}`);
+    }
+
+    const pantallaPat=cifra(texto('patrimonio'));
+    if(pantallaPat!==null){
+      const esperado = Engine.hayBoveda() ? Engine.disponibleTotal() : Engine.patrimonioTotal();
+      if(!cerca(pantallaPat, esperado, 1))
+        fallos.push(`El tablero muestra ${F(pantallaPat)} y debería mostrar ${F(esperado)}`);
+    }
+    const pantallaNeto=cifra(texto('mNet'));
+    if(pantallaNeto!==null){
+      const tt=Engine.recalculate(mesActualSistema());
+      if(!cerca(Math.abs(pantallaNeto), Math.abs(tt.neto), 1))
+        fallos.push(`El neto en pantalla (${F(pantallaNeto)}) no es el calculado (${F(tt.neto)})`);
+      if(tt.neto>0 && /^-/.test(texto('mNet').trim()))
+        fallos.push(`El neto sale en negativo en pantalla y es positivo (${F(tt.neto)})`);
+    }
+    if(r2){
+      const flujo=cifra(texto('heroDelta'));
+      if(flujo!==null && !cerca(Math.abs(flujo), Math.abs(r2.entro-r2.corriente-r2.fijo), 1))
+        fallos.push(`El flujo del ciclo en pantalla no es ingreso − gasto`);
+      if(r2.entro>r2.corriente+r2.fijo && /^-/.test(texto('heroDelta').trim()))
+        fallos.push(`El flujo sale en rojo habiendo entrado más de lo que se gastó`);
     }
   }catch(e){ fallos.push('La comprobación falló: '+e.message); }
 
