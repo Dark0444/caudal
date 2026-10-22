@@ -1456,7 +1456,7 @@ const Engine={
     return DB.transacciones.filter(t=>t.bancoId===id||t.bancoDestinoId===id||t.tarjetaId===id);
   },
   recalculate(m){
-    const t={ingresos:0,gastos:0,gastosTC:0,tarjeta:0,ahorros:0,retiros:0,neto:0};
+    const t={ingresos:0,gastos:0,gastosTC:0,tarjeta:0,ahorros:0,apartado:0,retiros:0,neto:0};
     for(const x of Engine.txMes(m)){
       const v=num(x.monto);
       if(x.tipo==='ingreso') t.ingresos+=v;
@@ -1465,11 +1465,16 @@ const Engine={
       else if(x.tipo==='ahorro') t.ahorros+=v;
       else if(x.tipo==='retiro') t.retiros+=v;
       /* Mandar dinero a la bóveda ES apartar, aunque se haya hecho con una
-         transferencia entre cuentas y no desde un plan de ahorro. */
+         transferencia entre cuentas y no desde un plan de ahorro. Se cuenta
+         aparte porque, a diferencia de un aporte a un plan, el dinero no sale
+         de las cuentas: solo cambia de una a otra. */
       else if(x.tipo==='transfer' && Engine.esBoveda(DB.bancos.find(b=>b.id===x.bancoDestinoId)||{}))
-        t.ahorros+=v;
+        t.apartado+=v;
     }
-    t.neto=t.ingresos-t.gastos-t.tarjeta-t.ahorros+t.retiros;
+    t.ahorros+=t.apartado;          // para la tarjeta "Ahorrado" y el reporte
+    /* El neto no resta lo apartado: ese dinero sigue siendo tuyo y sigue en tus
+       cuentas. Restarlo pintaba el mes en rojo justo por haber ahorrado. */
+    t.neto=t.ingresos-t.gastos-t.tarjeta-(t.ahorros-t.apartado)+t.retiros;
     return t;
   },
   budgetsFor(m){
