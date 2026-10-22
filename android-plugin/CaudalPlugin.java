@@ -306,6 +306,78 @@ public class CaudalPlugin extends Plugin {
         call.resolve();
     }
 
+    /* ---------- Que los avisos suenen con la app cerrada ---------- */
+
+    /**
+     * Samsung manda las apps a "sueño profundo" por su cuenta y ahí las alarmas
+     * no corren. Esto reporta los dos permisos que hacen falta para que los
+     * resúmenes lleguen a su hora sin abrir la app.
+     */
+    @PluginMethod
+    public void estadoSegundoPlano(PluginCall call) {
+        Context ctx = getContext();
+        JSObject r = new JSObject();
+
+        boolean sinOptimizar = true;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                android.os.PowerManager pm =
+                        (android.os.PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+                sinOptimizar = pm != null && pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+            }
+        } catch (Throwable ignored) { }
+
+        boolean exactas = true;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                android.app.AlarmManager am =
+                        (android.app.AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+                exactas = am != null && am.canScheduleExactAlarms();
+            }
+        } catch (Throwable ignored) { }
+
+        r.put("bateria", sinOptimizar);
+        r.put("alarmas", exactas);
+        r.put("fabricante", android.os.Build.MANUFACTURER);
+        call.resolve(r);
+    }
+
+    /** Abre el diálogo del sistema para quitarle la optimización de batería. */
+    @PluginMethod
+    public void pedirSinOptimizar(PluginCall call) {
+        try {
+            Intent i = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            i.setData(android.net.Uri.parse("package:" + getContext().getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            /* Si el diálogo directo no existe, se abre la lista general. */
+            try {
+                Intent i = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+                call.resolve();
+            } catch (Exception e2) {
+                call.reject("No se pudo abrir los ajustes de batería", e2);
+            }
+        }
+    }
+
+    /** Abre la pantalla de "alarmas y recordatorios" de Android 12 en adelante. */
+    @PluginMethod
+    public void pedirAlarmasExactas(PluginCall call) {
+        try {
+            Intent i = new Intent("android.settings.REQUEST_SCHEDULE_EXACT_ALARM");
+            i.setData(android.net.Uri.parse("package:" + getContext().getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("No se pudo abrir la pantalla de alarmas", e);
+        }
+    }
+
     /** Para el botón de prueba: lanza el resumen del día tal como saldría a las 21:00. */
     @PluginMethod
     public void probarResumen(PluginCall call) {

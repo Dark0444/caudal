@@ -38,7 +38,10 @@ const permisos = [
   'android.permission.USE_EXACT_ALARM',
   'android.permission.VIBRATE',
   'android.permission.RECEIVE_BOOT_COMPLETED',
-  'android.permission.WAKE_LOCK'
+  'android.permission.WAKE_LOCK',
+  /* Sin esto, Samsung manda la app a "sueño profundo" y las alarmas de los
+     resúmenes no corren hasta que alguien la abre. */
+  'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS'
 ];
 const faltantes = permisos.filter(p => !manifest.includes('"' + p + '"'));
 if (faltantes.length) {

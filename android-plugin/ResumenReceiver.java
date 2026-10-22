@@ -49,13 +49,31 @@ public class ResumenReceiver extends BroadcastReceiver {
         PendingIntent pi = PendingIntent.getBroadcast(ctx, codigo, i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         try {
-            /* Inexacto a propósito: un resumen no necesita el segundo exacto, y así
-               Android puede agruparlo con otras tareas y gastar menos batería. */
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            /* EXACTA, no inexacta. Con setAndAllowWhileIdle, Samsung retiene el
+               aviso mientras el teléfono duerme y lo suelta cuando el usuario
+               abre la app: llegan todos de golpe, horas tarde y sin sentido.
+               Peor aún, mientras el disparo no ocurre tampoco se programa el
+               siguiente, así que la cadena se rompe sola.
+               Un resumen de las 21:00 que llega a las 7 de la mañana no sirve
+               de nada, así que aquí la exactitud sí importa. */
+            boolean puedeExacta = true;
+            if (Build.VERSION.SDK_INT >= 31) {
+                try { puedeExacta = am.canScheduleExactAlarms(); } catch (Throwable t) { puedeExacta = false; }
+            }
+            if (puedeExacta && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
             } else {
-                am.set(AlarmManager.RTC_WAKEUP, cuando, pi);
+                am.setExact(AlarmManager.RTC_WAKEUP, cuando, pi);
             }
+        } catch (SecurityException e) {
+            /* Sin permiso de alarmas exactas: mejor tarde que nunca. */
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
+                else am.set(AlarmManager.RTC_WAKEUP, cuando, pi);
+            } catch (Throwable ignored) { }
         } catch (Throwable ignored) { }
     }
 

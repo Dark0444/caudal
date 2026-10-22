@@ -1099,6 +1099,10 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <input class="inp" id="notifUrl" readonly style="font-size:12px">
     <button class="btn ghost" type="button" id="btnCopiarUrl" style="margin-top:8px">Copiar dirección</button>
   </div>
+  <h3 style="margin-top:22px">Que suenen con la app cerrada</h3>
+  <p class="sub">Android apaga lo que no usas para ahorrar batería, y de paso apaga los avisos. Aquí se ve si Caudal está libre de eso.</p>
+  <div id="segundoPlano"></div>
+
   <h3 style="margin-top:22px">Qué te avisa por notificación</h3>
   <p class="sub">Todo sigue apareciendo aquí en la campana. Esto solo elige qué además te manda un aviso al sistema (o al banner, si aún no diste permiso).</p>
   <div class="card tight" id="notifPrefList">
@@ -1460,6 +1464,10 @@ const Engine={
       else if(x.tipo==='tarjeta') t.tarjeta+=v;
       else if(x.tipo==='ahorro') t.ahorros+=v;
       else if(x.tipo==='retiro') t.retiros+=v;
+      /* Mandar dinero a la bóveda ES apartar, aunque se haya hecho con una
+         transferencia entre cuentas y no desde un plan de ahorro. */
+      else if(x.tipo==='transfer' && Engine.esBoveda(DB.bancos.find(b=>b.id===x.bancoDestinoId)||{}))
+        t.ahorros+=v;
     }
     t.neto=t.ingresos-t.gastos-t.tarjeta-t.ahorros+t.retiros;
     return t;
@@ -2231,7 +2239,7 @@ function resumenCiclo(){
   const c=cicloActual(); if(!c) return null;
   const h=hoy();
   const dentro=t=>t.fecha>=c.ini && t.fecha<=h;
-  let entro=0, salio=0, corriente=0, fijo=0;
+  let entro=0, salio=0, corriente=0, fijo=0, aTarjeta=0, aBoveda=0;
   DB.transacciones.forEach(t=>{
     if(!dentro(t)) return;
     const v=num(t.monto);
@@ -2244,11 +2252,14 @@ function resumenCiclo(){
       salio+=v;
       if(esCategoriaFija(t.categoria)) fijo+=v; else corriente+=v;
     }
-    else if(t.tipo==='tarjeta') salio+=v;
-    else if(t.tipo==='ahorro') salio+=v;
+    else if(t.tipo==='tarjeta'){ salio+=v; aTarjeta+=v; }
+    else if(t.tipo==='ahorro'){ salio+=v; aBoveda+=v; }
     /* Mandar dinero a la bóveda lo saca de lo gastable igual que abonar a la
-       tarjeta: sale del efectivo, pero no es gasto — sigue siendo tuyo. */
-    else if(t.tipo==='transfer' && Engine.esBoveda(DB.bancos.find(x=>x.id===t.bancoDestinoId)||{})) salio+=v;
+       tarjeta: sale del efectivo, pero no es gasto — sigue siendo tuyo. Se
+       cuenta aparte porque no es lo mismo pagar deuda que guardar. */
+    else if(t.tipo==='transfer' && Engine.esBoveda(DB.bancos.find(x=>x.id===t.bancoDestinoId)||{})){
+      salio+=v; aBoveda+=v;
+    }
   });
 
   /* Lo que ya tiene dueño: obligaciones que vencen de hoy al final del ciclo. */
@@ -2316,7 +2327,7 @@ function resumenCiclo(){
   return Object.assign({}, c, {entro, salio, corriente, ritmo, comprometido, porPagar,
                                disponible, libre, base, sinGastarMas, proyectado,
                                meta, metaFijada:!!metaFijada, margen, porDia, apartable,
-                               ritmos, restante, fijo, fijos});
+                               ritmos, restante, fijo, fijos, aTarjeta, aBoveda});
 }
 
 function renderCiclo(){
@@ -2379,8 +2390,8 @@ function renderCiclo(){
     ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'gastaste <b>'+Engine.format(r.corriente)+'</b>']
     : ['Aún no registras el ingreso de este ciclo, así que esto mide el saldo de tus cuentas'];
   if(r.fijo>0.5) piezas.push('<b>'+Engine.format(r.fijo)+'</b> en fijos ('+r.fijos.nombres.join(', ')+')');
-  const aTarjeta=r.salio-r.corriente-r.fijo;
-  if(aTarjeta>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(aTarjeta)+'</b> a la tarjeta (eso también es ahorro)');
+  if(r.aTarjeta>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(r.aTarjeta)+'</b> a la tarjeta (eso también es ahorro)');
+  if(r.aBoveda>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(r.aBoveda)+'</b> guardado en la bóveda');
   if(r.comprometido>0) piezas.push('<b style="color:var(--gold)">'+Engine.format(r.comprometido)+'</b> ya tiene dueño ('
       +r.porPagar.map(p=>esc(p.nombre)).join(', ')+')');
   if(r.libre>0) piezas.push('te quedan <b>'+Engine.format(r.libre)+'</b> en efectivo');
@@ -4458,6 +4469,53 @@ function renderNotifPanel(){
     <div class="bd">${esc(a.mensaje)}</div>
     <button data-dismiss="${a.id}" style="color:var(--text-3);font-size:17px;align-self:flex-start">×</button></div>`).join('');
 }
+/* Un aviso programado que llega ocho horas tarde no sirve de nada. En Samsung
+   hace falta sacar la app de la optimización de batería; de Android 12 en
+   adelante, además, dar permiso para alarmas exactas. Ninguna de las dos se
+   puede conceder por código: solo se puede llevar al usuario a la pantalla. */
+async function renderSegundoPlano(){
+  const cont=$('segundoPlano'); if(!cont) return;
+  const N=nativoCaudal();
+  if(!N){ cont.innerHTML='<div class="muted" style="font-size:11.5px">Solo aplica en la app instalada.</div>'; return; }
+  let e;
+  try{ e=await N.estadoSegundoPlano(); }
+  catch(err){ cont.innerHTML='<div class="muted" style="font-size:11.5px">Reinstala la app: esta comprobación llegó en una versión más nueva.</div>'; return; }
+
+  const fila=(ok,titulo,detalle,accion,id)=>`
+    <div class="card tight" style="margin-bottom:8px;border-color:${ok?'rgba(45,212,191,.35)':'rgba(255,196,107,.45)'};
+         background:${ok?'rgba(45,212,191,.06)':'rgba(255,196,107,.08)'}">
+      <div style="font-weight:700;font-size:12.5px">${ok?'✓':'⚠'} ${titulo}</div>
+      <div class="muted" style="font-size:11.5px;margin-top:4px;line-height:1.5">${detalle}</div>
+      ${ok?'':`<button class="btn" type="button" id="${id}" style="margin-top:10px;padding:9px;font-size:12px">${accion}</button>`}
+    </div>`;
+
+  cont.innerHTML =
+    fila(e.bateria,'Batería sin restricciones',
+      e.bateria ? 'Los avisos pueden sonar aunque lleves días sin abrir la app.'
+                : 'Android tiene a Caudal en ahorro de batería. Los avisos de las 21:00 se quedan guardados y te llegan todos juntos cuando abres la app.',
+      'Quitar la restricción','btnPedirBateria')
+    + fila(e.alarmas,'Alarmas a su hora',
+      e.alarmas ? 'Los resúmenes salen a la hora exacta.'
+                : 'Sin este permiso los avisos salen cuando Android quiera, no a las 21:00.',
+      'Dar permiso de alarmas','btnPedirAlarmas');
+
+  if($('btnPedirBateria')) $('btnPedirBateria').onclick=async()=>{
+    try{ await N.pedirSinOptimizar(); }catch(x){ showToast('Ábrelo en Ajustes › Batería'); }
+  };
+  if($('btnPedirAlarmas')) $('btnPedirAlarmas').onclick=async()=>{
+    try{ await N.pedirAlarmasExactas(); }catch(x){ showToast('Ábrelo en Ajustes › Apps › Caudal › Alarmas'); }
+  };
+
+  /* Samsung tiene además su propia lista, que no se puede abrir por código. */
+  if((e.fabricante||'').toLowerCase().includes('samsung') && (!e.bateria||!e.alarmas)){
+    cont.insertAdjacentHTML('beforeend',
+      '<div class="muted" style="font-size:11px;line-height:1.6;margin-top:4px">'
+      +'En Samsung hay un tercer lugar que los botones de arriba no alcanzan: '
+      +'<b>Ajustes › Batería › Límites de uso en segundo plano</b>. Saca a Caudal de '
+      +'<b>Apps en suspensión</b> y de <b>Apps en suspensión profunda</b> si aparece ahí.</div>');
+  }
+}
+
 function renderNotifPrefs(){
   const cfg=notifPrefsCfg();
   document.querySelectorAll('#notifPrefList [data-np]').forEach(el=>{ el.checked = cfg[el.dataset.np]!==false; });
@@ -4465,7 +4523,7 @@ function renderNotifPrefs(){
   if(d){ d.value=String(cfg.diasAnticipacion==null?3:cfg.diasAnticipacion); }
 }
 window.toggleNotifPanel = toggleNotifPanel;
-function toggleNotifPanel(){ renderNotifPanel(); renderNotifEstado(); renderNotifPrefs(); openSheet('sheetAlerts'); }
+function toggleNotifPanel(){ renderNotifPanel(); renderNotifEstado(); renderNotifPrefs(); renderSegundoPlano(); openSheet('sheetAlerts'); }
 
 /* ---------- 18. Respaldo Excel ---------- */
 const NOMBRE_DIA=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
