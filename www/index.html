@@ -1957,7 +1957,10 @@ function renderDashboard(){
   /* Quien cobra el 15 y el 28 no vive por mes calendario: medir el flujo del 1
      al 31 lo pinta en rojo justo los días en que vive del sueldo anterior. */
   const rc=(mesSel===mesActualSistema())?resumenCiclo():null;
-  const flujo = rc ? rc.entro-rc.salio : t.neto;
+  /* Lo que entró menos lo que se GASTÓ. Abonar la tarjeta y guardar en la
+     bóveda salen de la cuenta pero no del patrimonio: contarlos aquí pintaba
+     en rojo un ciclo en el que se ahorró de más. */
+  const flujo = rc ? rc.entro-rc.corriente-rc.fijo : t.neto;
   d.className='delta '+(flujo>=0?'up':'down');
   d.textContent=(flujo>=0?'+':'')+Engine.format(flujo);
   $('heroNote').textContent = rc
@@ -2285,10 +2288,14 @@ function resumenCiclo(){
      hay en las cuentas: sumar los ahorros daría un margen que en realidad no se
      piensa gastar. Si el ingreso del ciclo todavía no está registrado, se cae
      al saldo líquido para no mostrar un número sin sentido. */
+  /* "Libre" es el efectivo que de verdad hay para gastar hoy, menos lo que ya
+     tiene dueño. Antes se calculaba restándole al sueldo todo lo que salió de
+     la cuenta, y ahí entraban el abono a la tarjeta y lo guardado en la
+     bóveda: mover dinero entre bolsillos dejaba el margen en negativo y la app
+     decía "no deberías gastar más" con mil quetzales en la cuenta. */
   const disponible=Engine.disponibleTotal();
   const base = entro>0 ? 'ciclo' : 'saldo';
-  const bruto = base==='ciclo' ? entro-salio : disponible;
-  const libre = bruto - comprometido;
+  const libre = disponible - comprometido;
   const ritmo = c.transcurridos>0 ? corriente/c.transcurridos : 0;
   /* Lo que falta por gastar se proyecta día por día, no con un promedio plano:
      quedan dos lunes o ninguno, y eso cambia el resultado por cientos. */
