@@ -49,6 +49,14 @@ public class Analizador {
     private static final Pattern COMERCIO_GENERICO = Pattern.compile(
             "\\ben\\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9&'.,\\- ]{3,45})", Pattern.CASE_INSENSITIVE);
 
+    /* El nombre del comercio termina donde empieza la frase de la tarjeta. Sin
+       esto, "Compra por Q250 en SUPER LA TORRE con tarjeta terminada en 1234"
+       dejaba el comercio como "SUPER LA TORRE con tarjeta terminada e". */
+    private static final Pattern CORTE_COMERCIO = Pattern.compile(
+            "\\s+(?:con|de|usando|mediante|desde)\\s+(?:tu\\s+|mi\\s+|la\\s+|su\\s+)?"
+          + "(?:tarjeta|cuenta|debito|débito|credito|crédito|visa|mastercard)\\b.*$",
+            Pattern.CASE_INSENSITIVE);
+
     private static final Pattern AUTORIZACION = Pattern.compile(
             "Aut\\.?\\s*([0-9]{4,12})", Pattern.CASE_INSENSITIVE);
 
@@ -205,7 +213,8 @@ public class Analizador {
     private static String limpiarComercio(String s) {
         if (s == null) return "";
         String c = s.trim().replaceAll("\\s+", " ");
-        c = COLA_COMERCIO.matcher(c).replaceAll("");
+        c = CORTE_COMERCIO.matcher(c).replaceAll("");   // "… con tarjeta terminada en 1234"
+        c = COLA_COMERCIO.matcher(c).replaceAll("");    // país y teléfono que pega Promerica
         return c.trim();
     }
 

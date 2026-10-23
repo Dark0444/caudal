@@ -164,8 +164,13 @@ public class Avisos {
         JSONObject r = Almacen.leerObjeto(ctx, Almacen.RESUMEN);
         String hoy = fechaHoy();
 
-        double gastado = hoy.equals(r.optString("fecha")) ? r.optDouble("gastadoHoy", 0) : 0;
-        int movs = hoy.equals(r.optString("fecha")) ? r.optInt("movsHoy", 0) : 0;
+        boolean deHoy = hoy.equals(r.optString("fecha"));
+        double gastado = deHoy ? r.optDouble("gastadoHoy", 0) : 0;
+        /* Para comparar contra el ritmo del ciclo hay que usar el gasto
+           corriente: sin tarjeta de crédito y sin categorías fijas. Con el
+           total, llenar el tanque disparaba un regaño por un gasto obligado. */
+        double corriente = deHoy ? r.optDouble("corrienteHoy", gastado) : 0;
+        int movs = deHoy ? r.optInt("movsHoy", 0) : 0;
 
         /* Suma lo confirmado desde la notificación que aún no entra al libro mayor */
         JSONArray cola = Almacen.leerArreglo(ctx, Almacen.COLA);
@@ -176,6 +181,11 @@ public class Avisos {
             if (!"gasto".equals(c.optString("tipo"))) continue;
             if (!hoy.equals(c.optString("fecha"))) continue;
             gastado += c.optDouble("monto", 0);
+            /* Entra en el titular ("hoy gastaste X") pero NO en la comparación
+               contra el ritmo: un cobro confirmado todavía no tiene cuenta
+               asignada, así que no se sabe si salió de una cuenta o de la
+               tarjeta. El ritmo se compara solo con lo que ya está en el libro,
+               que es de donde salen las cifras del ciclo. */
             movs++;
         }
 
@@ -188,7 +198,7 @@ public class Avisos {
             cuerpo = movs + (movs == 1 ? " movimiento" : " movimientos") + ".";
         }
 
-        String cierre = proyeccionCiclo(r, gastado, movs == 0);
+        String cierre = proyeccionCiclo(r, corriente, movs == 0);
         if (!cierre.isEmpty()) {
             cuerpo += " " + cierre;
         } else {

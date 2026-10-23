@@ -387,7 +387,22 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 .presets button{padding:11px 4px;border-radius:15px;background:var(--surface);border:1px solid var(--stroke);font-size:10.5px;font-weight:700;line-height:1.3}
 .presets button em{display:block;font-style:normal;font-size:21px;margin-bottom:3px}
 .presets button.on{border-color:var(--violet);background:var(--violet-soft)}
-.presets.scroll{max-height:206px;overflow-y:auto;overscroll-behavior:contain;padding:2px 2px 0;scrollbar-width:thin}
+/* Dos filas y media: la media fila de abajo es la que avisa de que hay más
+   iconos. Antes asomaban 17px de la cuarta fila, que no se ve entera ni se
+   entiende que se desliza: parecía que la rejilla estaba cortada. */
+.presets.scroll{
+  /* position:relative para que offsetTop de cada icono se mida contra la
+     rejilla. Sin esto se mide contra un ancestro cualquiera y el cálculo de
+     "trae el elegido a la vista" apunta a otro sitio. */
+  position:relative;
+  max-height:157px;overflow-y:auto;overscroll-behavior:contain;padding:2px 2px 0;
+  scrollbar-width:thin;
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)
+}
+/* Al llegar al final se quita el difuminado, para que el último icono no
+   quede medio borrado cuando ya no hay nada más abajo. */
+.presets.scroll.fin{-webkit-mask-image:none;mask-image:none}
 .icono-libre{margin-top:9px}
 .icono-libre input{font-size:13px;padding:10px 12px}
 
@@ -595,7 +610,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
         <div id="histPatLegend" style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text-2)"></div>
       </div>
 
-      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas (sin contar tarjeta de crédito) en cada uno de los últimos meses.">?</button></h2></div>
+      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas en cada uno de los últimos meses.&lt;br&gt;&lt;br&gt;La barra roja incluye los abonos que le hiciste a la tarjeta, porque ese dinero sí sale de tus cuentas. Lo que consumiste con la tarjeta y todavía no has pagado no está aquí: eso se mide aparte, en la deuda.">?</button></h2></div>
       <div class="card" id="ingVsGasCard">
         <svg id="ingVsGasSvg" viewBox="0 0 300 120" preserveAspectRatio="none" style="width:100%;height:120px;display:block" aria-hidden="true"></svg>
         <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-2)">
@@ -875,6 +890,12 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
     <div class="muted" id="obFechaHint" style="margin-bottom:14px;font-size:11.5px"></div>
     <label class="f"><span>Se registra como</span>
       <select class="inp" id="obTipo"><option value="gasto">Gasto</option><option value="tarjeta">Pago de tarjeta</option></select>
+    </label>
+    <label class="f hide" id="obTarjetaWrap"><span>¿A qué tarjeta?</span>
+      <select class="inp" id="obTarjeta"></select>
+    </label>
+    <label class="f" id="obCatWrap"><span>Categoría del gasto</span>
+      <select class="inp" id="obCategoria"></select>
     </label>
     <button class="btn" type="submit">Guardar obligación</button>
     <button class="btn danger hide" type="button" id="obDelete" style="margin-top:9px">Eliminar obligación</button>
@@ -1375,7 +1396,15 @@ function reprogramarNativo(){
 function postAction(tipo,payload){
   const fn=ACCIONES[tipo];
   if(!fn){ console.warn('Acción desconocida:',tipo); return null; }
+  ultimoRechazo=null;
   const r=fn(payload);
+  /* Si la guardia de integridad rechazó el movimiento, el usuario tiene que
+     saber por qué: sin esto, tocaría Guardar y no pasaría nada. */
+  if(r===null && ultimoRechazo){
+    const motivo=ultimoRechazo; ultimoRechazo=null;
+    try{ showToast(motivo); }catch(e){ console.warn(motivo); }
+    return null;
+  }
   if(r && r.id && !r.auto && (tipo==='addTx'||tipo==='pagarOb')) aplicarAutomatizacionesMeta(r);
   saveDB(); getAllDataLocal(); renderAll(); runAlertEngine(); reprogramarNativo();
   actualizarResumenNativo();
@@ -1413,19 +1442,30 @@ const Engine={
   formatK:n=>CUR0.format(num(n)),
   txMes:m=>DB.transacciones.filter(t=>mesDe(t.fecha)===m),
 
+  /* Saldo real de una cuenta: el inicial más lo que dicen sus movimientos.
+     Cada tipo se nombra de forma explícita. No hay un "else" que atrape lo
+     desconocido: un movimiento con un tipo que el motor no entiende no mueve
+     ningún saldo, en vez de restarlo a ciegas. */
   bancoValor(b){
-    let v = b.tipo==='credito' ? num(b.deudaInicial) : num(b.saldoInicial);
+    const esCred = b.tipo==='credito';
+    let v = esCred ? num(b.deudaInicial) : num(b.saldoInicial);
     for(const t of DB.transacciones){
       const m=num(t.monto);
-      if(b.tipo==='credito'){
+      if(esCred){
+        /* En una tarjeta, v es la DEUDA: consumir sube, abonar baja. */
         if(t.bancoId===b.id && t.tipo==='gasto') v+=m;
-        if(t.tarjetaId===b.id && t.tipo==='tarjeta') v-=m;
+        /* Un abono baja la deuda solo si el dinero salió de otra cuenta.
+           Pagar la tarjeta con ella misma no paga nada. */
+        if(t.tarjetaId===b.id && t.tipo==='tarjeta' && t.bancoId!==b.id) v-=m;
+        /* Transferir a una tarjeta es abonarle. */
+        if(t.tipo==='transfer' && t.bancoDestinoId===b.id && t.bancoId!==b.id) v-=m;
       }else{
         if(t.bancoId===b.id){
-          if(t.tipo==='ingreso'||t.tipo==='retiro') v+=m;
-          else v-=m;
+          if(t.tipo==='ingreso' || t.tipo==='retiro') v+=m;
+          else if(t.tipo==='gasto' || t.tipo==='ahorro' || t.tipo==='tarjeta') v-=m;
+          else if(t.tipo==='transfer' && t.bancoDestinoId!==b.id) v-=m;
         }
-        if(t.tipo==='transfer' && t.bancoDestinoId===b.id) v+=m;
+        if(t.tipo==='transfer' && t.bancoDestinoId===b.id && t.bancoId!==b.id) v+=m;
       }
     }
     return v;
@@ -1443,13 +1483,43 @@ const Engine={
      pero no debe aparecer en ningún número con el que se decide un gasto: ver
      que "hay" lo convierte en disponible aunque no lo sea. */
   esBoveda(b){ return !!b.boveda && b.tipo!=='credito'; },
+  /* "Apartar" es mandar dinero a la bóveda: sigue siendo tuyo pero sale de lo
+     gastable. La regla vive SOLO aquí porque antes estaba escrita por separado
+     en el motor, en el ciclo y en el desglose del tablero, y se separaron: la
+     tarjeta "Ahorrado" decía Q2,790 y al tocarla el detalle salía vacío. */
+  esApartado(t){
+    return t.tipo==='transfer'
+        && Engine.esBoveda(DB.bancos.find(b=>b.id===t.bancoDestinoId)||{})
+        && !Engine.esBoveda(DB.bancos.find(b=>b.id===t.bancoId)||{});
+  },
+  /* Y lo contrario: sacar dinero de la bóveda para gastarlo. Cuenta en contra
+     de lo apartado, porque si no, guardar Q1,000 y sacar Q400 el mismo mes
+     seguía diciendo "ahorraste Q1,000". */
+  esDesapartado(t){
+    return t.tipo==='transfer'
+        && Engine.esBoveda(DB.bancos.find(b=>b.id===t.bancoId)||{})
+        && !Engine.esBoveda(DB.bancos.find(b=>b.id===t.bancoDestinoId)||{});
+  },
   enBoveda(){ return DB.bancos.filter(Engine.esBoveda).reduce((a,b)=>a+Engine.bancoValor(b),0); },
   hayBoveda(){ return DB.bancos.some(Engine.esBoveda); },
   disponibleTotal(){
     return DB.bancos.filter(b=>b.tipo!=='credito' && !Engine.esBoveda(b))
                     .reduce((a,b)=>a+Engine.bancoValor(b),0);
   },
-  enPlanes(){ return DB.metas.reduce((a,m)=>a+num(m.actual),0); },
+  /* Lo acumulado en un plan se calcula desde los movimientos, no desde el
+     campo guardado en el plan. El campo es una copia que se mantiene al día
+     tras cada cambio, pero al restaurar un respaldo puede venir desfasado, y
+     entonces el patrimonio del tablero y la gráfica histórica discrepaban. */
+  enPlan(id){
+    let v=0;
+    for(const t of DB.transacciones){
+      if(t.metaId!==id) continue;
+      if(t.tipo==='ahorro') v+=num(t.monto);
+      else if(t.tipo==='retiro') v-=num(t.monto);
+    }
+    return Math.max(0,v);
+  },
+  enPlanes(){ return DB.metas.reduce((a,m)=>a+Engine.enPlan(m.id),0); },
   // La tarjeta de crédito es independiente: su deuda consume su propio límite,
   // no el patrimonio ni el presupuesto general del mes.
   patrimonioTotal(){ return Math.max(0, Engine.liquidoTotal()+Engine.enPlanes()); },
@@ -1469,8 +1539,8 @@ const Engine={
          transferencia entre cuentas y no desde un plan de ahorro. Se cuenta
          aparte porque, a diferencia de un aporte a un plan, el dinero no sale
          de las cuentas: solo cambia de una a otra. */
-      else if(x.tipo==='transfer' && Engine.esBoveda(DB.bancos.find(b=>b.id===x.bancoDestinoId)||{}))
-        t.apartado+=v;
+      else if(Engine.esApartado(x)) t.apartado+=v;
+      else if(Engine.esDesapartado(x)) t.apartado-=v;
     }
     t.ahorros+=t.apartado;          // para la tarjeta "Ahorrado" y el reporte
     /* El neto no resta lo apartado: ese dinero sigue siendo tuyo y sigue en tus
@@ -1495,22 +1565,96 @@ const Engine={
     return Math.round(clamp(s,0,100));
   },
   ahorroStreak(){
-    let n=0, d=new Date();
+    /* Se recorre con año y mes sueltos. Con setMonth(getMonth()-1) sobre un día
+       29, 30 o 31 el navegador salta un mes entero (del 31 de marzo al 3 de
+       marzo pasa al 31 de febrero, que no existe), y la racha contaba de más. */
+    const h=new Date();
+    let a=h.getFullYear(), mm=h.getMonth()+1, n=0;
     for(let i=0;i<60;i++){
-      const m=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      const m=a+'-'+String(mm).padStart(2,'0');
       const t=Engine.recalculate(m);
       if(t.ahorros>t.retiros && t.ahorros>0) n++;
       else if(i>0 || t.ingresos||t.gastos) break;
-      d.setMonth(d.getMonth()-1);
+      mm--; if(mm<1){ mm=12; a--; }
     }
     return n;
   }
 };
 
 /* ---------- 3. Mutaciones locales ---------- */
+
+/* Guardia de integridad. Es la última puerta antes de que un movimiento entre
+   al libro, y existe por una razón concreta: en una app de dinero, un
+   movimiento imposible no es un número raro en pantalla, es patrimonio
+   inventado o desaparecido. Aquí se rechaza TODO movimiento que no cuadre,
+   venga de la pantalla, de una automatización o del pago de una obligación.
+   Devuelve un texto explicando el motivo, o null si el movimiento es válido. */
+let ultimoRechazo=null;
+function revisarMovimiento(t, idEditando){
+  const TIPOS=['ingreso','gasto','tarjeta','ahorro','retiro','transfer'];
+  if(!t || TIPOS.indexOf(t.tipo)<0) return 'Tipo de movimiento no reconocido';
+  const monto=num(t.monto);
+  if(!(monto>0)) return 'El monto tiene que ser mayor que cero';
+  if(!isFinite(monto)) return 'El monto no es un número válido';
+
+  const cuenta = id => DB.bancos.find(b=>b.id===id) || null;
+  const liquida = id => { const b=cuenta(id); return b && b.tipo!=='credito' ? b : null; };
+  const credito = id => { const b=cuenta(id); return b && b.tipo==='credito' ? b : null; };
+
+  if(t.tipo==='ingreso'){
+    if(!t.bancoId) return 'Elige en qué cuenta entró el dinero';
+    if(!cuenta(t.bancoId)) return 'Esa cuenta ya no existe';
+    if(!liquida(t.bancoId)) return 'Un ingreso no puede entrar en una tarjeta de crédito';
+  }
+
+  if(t.tipo==='gasto'){
+    if(!t.bancoId) return 'Elige con qué cuenta pagaste';
+    if(!cuenta(t.bancoId)) return 'Esa cuenta ya no existe';
+  }
+
+  if(t.tipo==='tarjeta'){
+    if(!t.bancoId) return 'Elige de qué cuenta sale el abono';
+    if(!liquida(t.bancoId)) return 'El abono tiene que salir de una cuenta, no de una tarjeta';
+    if(DB.bancos.some(b=>b.tipo==='credito')){
+      if(!t.tarjetaId) return 'Elige la tarjeta que estás abonando';
+      if(!credito(t.tarjetaId)) return 'Esa tarjeta ya no existe';
+      if(t.tarjetaId===t.bancoId) return 'Una tarjeta no se puede pagar con ella misma';
+    }
+  }
+
+  if(t.tipo==='ahorro' || t.tipo==='retiro'){
+    if(!t.bancoId) return t.tipo==='ahorro'
+      ? 'Elige de qué cuenta sale el dinero que vas a apartar'
+      : 'Elige a qué cuenta entra el dinero que retiras';
+    if(!liquida(t.bancoId)) return 'Los planes de ahorro trabajan con cuentas, no con tarjetas';
+    /* Un movimiento de un plan ya eliminado es historia válida, no un error. */
+    if(!t.metaId) return t.planBorrado ? null : 'Elige el plan de ahorro';
+    const meta=DB.metas.find(m=>m.id===t.metaId);
+    if(!meta) return 'Ese plan de ahorro ya no existe';
+    if(t.tipo==='retiro'){
+      let tope=num(meta.actual);
+      if(idEditando){
+        const old=DB.transacciones.find(x=>x.id===idEditando);
+        if(old && old.metaId===t.metaId && old.tipo==='retiro') tope+=num(old.monto);
+      }
+      if(monto>tope+0.01) return 'En «'+meta.nombre+'» solo tienes '+Engine.format(Math.max(0,tope));
+    }
+  }
+
+  if(t.tipo==='transfer'){
+    if(!t.bancoId || !t.bancoDestinoId) return 'Una transferencia necesita cuenta de origen y de destino';
+    if(!cuenta(t.bancoId) || !cuenta(t.bancoDestinoId)) return 'Una de las dos cuentas ya no existe';
+    if(t.bancoId===t.bancoDestinoId) return 'El origen y el destino son la misma cuenta';
+    if(!liquida(t.bancoId)) return 'Una transferencia tiene que salir de una cuenta, no de una tarjeta';
+  }
+  return null;
+}
+
 function localAddTransaction(tx){
   const t=Object.assign({id:uid(),fecha:hoy(),monto:0},tx);
   t.monto=Math.round(num(t.monto)*100)/100;
+  const mal=revisarMovimiento(t);
+  if(mal){ ultimoRechazo=mal; return null; }
   if(t.tipo==='gasto') t.esTC=Engine.esTarjeta(t.bancoId);
   DB.transacciones.push(t);
   if(t.tipo==='ahorro'&&t.metaId) ajustarMeta(t.metaId,+t.monto);
@@ -1520,9 +1664,13 @@ function localAddTransaction(tx){
 function localEditTransaction(tx){
   const i=DB.transacciones.findIndex(t=>t.id===tx.id); if(i<0) return null;
   const old=DB.transacciones[i];
+  const propuesta=Object.assign({},old,tx);
+  propuesta.monto=Math.round(num(propuesta.monto)*100)/100;
+  const mal=revisarMovimiento(propuesta, old.id);
+  if(mal){ ultimoRechazo=mal; return null; }
   if(old.metaId && (old.tipo==='ahorro'||old.tipo==='retiro'))
     ajustarMeta(old.metaId, old.tipo==='ahorro' ? -num(old.monto) : +num(old.monto));
-  const t=Object.assign({},old,tx); t.monto=Math.round(num(t.monto)*100)/100;
+  const t=propuesta;
   if(t.tipo==='gasto') t.esTC=Engine.esTarjeta(t.bancoId); else delete t.esTC;
   DB.transacciones[i]=t;
   if(t.metaId && t.tipo==='ahorro') ajustarMeta(t.metaId,+t.monto);
@@ -1596,12 +1744,34 @@ function localDeleteCategoria(id){ DB.categorias=DB.categorias.filter(c=>c.id!==
 function localAddObligacion(o){ const n=Object.assign({id:uid(),icono:'🧾',tipo:'gasto',dia:1},o); DB.obligaciones.push(n); return n; }
 function localEditObligacion(o){ const i=DB.obligaciones.findIndex(x=>x.id===o.id); if(i<0)return null; DB.obligaciones[i]=Object.assign({},DB.obligaciones[i],o); return DB.obligaciones[i]; }
 function localDeleteObligacion(id){ DB.obligaciones=DB.obligaciones.filter(o=>o.id!==id); return true; }
+/* Qué tarjeta abona una obligación de tipo tarjeta. Primero la que se guardó
+   en la obligación; si no hay y existe una sola tarjeta, esa. Con varias
+   tarjetas no se adivina: antes se abonaba siempre a la primera de la lista,
+   que con tres tarjetas acertaba una de cada tres veces. */
+function tarjetaDeObligacion(ob){
+  if(ob.tarjetaId && DB.bancos.some(b=>b.id===ob.tarjetaId && b.tipo==='credito')) return ob.tarjetaId;
+  const tjs=DB.bancos.filter(b=>b.tipo==='credito');
+  if(tjs.length===1) return tjs[0].id;
+  /* Obligaciones creadas antes de que existiera este campo: si el nombre de la
+     obligación menciona una de las tarjetas, es esa. */
+  const n=(ob.nombre||'').toLowerCase();
+  const porNombre=tjs.filter(b=>{
+    const bn=(b.nombre||'').toLowerCase();
+    return (bn && n.indexOf(bn)>=0) || (b.last4 && n.indexOf(String(b.last4))>=0);
+  });
+  return porNombre.length===1 ? porNombre[0].id : null;
+}
 function localPagarObligacion(p){
   const ob=DB.obligaciones.find(o=>o.id===p.obligacionId); if(!ob) return null;
+  if(ob.tipo==='tarjeta'){
+    const tj=p.tarjetaId || tarjetaDeObligacion(ob);
+    if(!tj){ ultimoRechazo='Abre «'+ob.nombre+'» y elige a qué tarjeta corresponde'; return null; }
+    p=Object.assign({},p,{tarjetaId:tj});
+  }
   return localAddTransaction({
     tipo: ob.tipo==='tarjeta' ? 'tarjeta' : 'gasto',
     monto:p.monto, fecha:p.fecha, bancoId:p.bancoId,
-    tarjetaId: p.tarjetaId || (ob.tipo==='tarjeta' ? ((DB.bancos.find(b=>b.tipo==='credito')||{}).id||null) : null),
+    tarjetaId: ob.tipo==='tarjeta' ? p.tarjetaId : null,
     descripcion:ob.nombre, categoria:ob.categoria||'Obligaciones', obligacionId:ob.id
   });
 }
@@ -1621,7 +1791,18 @@ function localRetirarAhorro(p){
   return localAddTransaction({tipo:'retiro',monto:p.monto,fecha:p.fecha,bancoId:p.bancoId||null,
     metaId:p.id,descripcion:'Retiro · '+(DB.metas.find(m=>m.id===p.id)||{}).nombre,categoria:'Ahorro'});
 }
-function localDeleteMeta(id){ DB.metas=DB.metas.filter(m=>m.id!==id); DB.transacciones.forEach(t=>{ if(t.metaId===id) t.metaId=null; }); return true; }
+function localDeleteMeta(id){
+  const m=DB.metas.find(x=>x.id===id);
+  const nombre=m?m.nombre:'plan eliminado';
+  DB.metas=DB.metas.filter(x=>x.id!==id);
+  /* Los movimientos se conservan —el dinero se movió de verdad— pero quedan
+     sin plan. Se marca de dónde venían para que el historial siga teniendo
+     sentido y para que la comprobación no los denuncie como imposibles. */
+  DB.transacciones.forEach(t=>{
+    if(t.metaId===id){ t.metaId=null; t.planBorrado=nombre; }
+  });
+  return true;
+}
 function localSetLimiteTC(p){ const b=DB.bancos.find(x=>x.id===p.id); if(b){ b.limite=num(p.limite); } return b; }
 
 /* ---------- 4. UI: hojas, toast, animaciones ---------- */
@@ -1768,11 +1949,28 @@ function renderBancoColorSwatches(sel){
 function renderIconPicker(cont,lista,sel){
   const c=$(cont);
   const todos = (sel && lista.indexOf(sel)<0) ? [sel].concat(lista) : lista;
-  /* Más de tres filas y la rejilla desfila el formulario entero hacia abajo:
-     a partir de ahí se queda a tres filas con la cuarta asomando, que es la
+  /* Más de dos filas y la rejilla desfila el formulario entero hacia abajo:
+     a partir de ahí se queda a dos filas y media, y esa media fila es la
      señal de que hay más para deslizar. */
-  c.classList.toggle('scroll', todos.length>12);
+  const desliza = todos.length>8;
+  c.classList.toggle('scroll', desliza);
   c.innerHTML=todos.map(i=>`<button type="button" data-i="${i}" class="${i===sel?'on':''}"><em>${i}</em></button>`).join('');
+  if(desliza){
+    /* El difuminado de abajo se quita al llegar al final: si no, el último
+       icono se queda medio borrado sin que haya nada más que ver. */
+    const marcarFin=()=>c.classList.toggle('fin', c.scrollTop+c.clientHeight >= c.scrollHeight-2);
+    c.onscroll=marcarFin; marcarFin();
+    /* Si lo elegido está más abajo, se trae a la vista: al editar, el icono
+       marcado podía quedar fuera de la parte visible de la rejilla.
+       Se mide con offsetTop, que va contra la propia rejilla (es position
+       relative). Medirlo contra la pantalla no sirve: cuando esto se ejecuta,
+       la hoja todavía no está colocada y las posiciones son otras. */
+    const elegido=c.querySelector('button.on');
+    if(elegido) c.scrollTop = Math.max(0, elegido.offsetTop - c.clientHeight/2 + elegido.offsetHeight/2);
+    marcarFin();
+  }else{
+    c.onscroll=null; c.classList.remove('fin');
+  }
 
   /* El campo va FUERA del <label>: dentro, tocar un botón de la rejilla
      enfocaría el input y abriría el teclado sin que nadie lo pidiera. */
@@ -1990,6 +2188,9 @@ function renderDashboard(){
                        tarjeta:rc.aTarjeta, ahorros:rc.aBoveda, retiros:0, neto:0} : t;
   const hs=Engine.healthScore(tSalud), arc=$('ringArc'), C=2*Math.PI*41;
   const periodo = rc ? 'en este ciclo' : 'este mes';
+  /* La ayuda del anillo se arma más abajo y tiene que usar estos mismos
+     números, no los del mes del calendario. */
+  window.__tSalud = tSalud; window.__periodoSalud = periodo;
   if(hs===null){
     arc.style.strokeDashoffset=C; $('hsNum').textContent='—';
     $('hsTitle').textContent='Salud financiera';
@@ -2011,10 +2212,19 @@ function renderDashboard(){
     'Es lo que realmente tienes: '+Engine.format(Engine.liquidoTotal())+' repartido en tus cuentas más '+
     Engine.format(Engine.enPlanes())+' guardado en planes de ahorro.<br><br>'+
     'La deuda de tarjeta de crédito no se resta aquí. La tarjeta es independiente: lo que consumes con ella descuenta de su propio límite, no de tu dinero disponible, y solo afecta tus cuentas el día que haces el pago.');
+  /* Los números de la ayuda son los MISMOS con los que se calculó el anillo.
+     Antes la ayuda enseñaba el mes del calendario mientras el puntaje salía
+     del ciclo de pago: tocabas el "?" y las cifras no daban el número que
+     tenías enfrente. */
+  const tsH = window.__tSalud || t, perH = window.__periodoSalud || 'este mes';
   setHint('hsHint','Salud financiera',
-    (hs===null?'Aún no hay datos de este mes.':'Vas en '+hs+' de 100.')+'<br><br>'+
-    'Se calcula comparando lo que gastaste desde tus cuentas y lo que pagaste de tarjeta contra tus ingresos del mes, y sube cuando apartas dinero en planes de ahorro. Las compras con tarjeta todavía sin pagar no bajan el puntaje: lo hará el pago cuando lo registres.<br><br>'+
-    'Este mes: ingresos '+Engine.format(t.ingresos)+' · salidas '+Engine.format(t.gastos+t.tarjeta)+' · ahorro '+Engine.format(t.ahorros)+'.');
+    (hs===null?'Aún no hay datos.':'Vas en '+hs+' de 100.')+'<br><br>'+
+    'Se calcula comparando lo que gastaste desde tus cuentas y lo que pagaste de tarjeta contra tus ingresos, y sube cuando apartas dinero. Las compras con tarjeta todavía sin pagar no bajan el puntaje: lo hará el pago cuando lo registres.<br><br>'+
+    (perH==='en este ciclo'
+      ? 'Se mide por ciclo de pago, no por mes: es el periodo con el que de verdad vives.<br><br>'
+      : '')+
+    'Ingresos '+Engine.format(tsH.ingresos)+' · salidas '+Engine.format(tsH.gastos+tsH.tarjeta)
+      +' · ahorro '+Engine.format(tsH.ahorros)+' ('+perH+').');
   const obPend=obligacionesDe(mesSel).reduce((a,o)=>a+Math.max(0,num(o.monto)-estadoObligacion(o,mesSel).pagado),0);
   setHint('obHint','Obligaciones fijas',
     'Recibos y suscripciones que se repiten cada mes. La barra muestra cuánto llevas pagado de cada una.<br><br>'+
@@ -2026,34 +2236,32 @@ function renderDashboard(){
   renderSpark(); updateChart(); renderQuickChips(); renderObligacionesEstado(mesSel); renderTCCard();
   renderPatrimonioHist(); renderIngresosGastos(); renderProyeccionMes(); renderCiclo();
 }
-/* ---------- Patrimonio recalculado a una fecha pasada (para la tendencia histórica) ---------- */
+/* ---------- Patrimonio recalculado a una fecha pasada (para la tendencia histórica) ----------
+   Usa el MISMO motor que el número grande del tablero, mirando solo los
+   movimientos hasta esa fecha. Antes esta función repetía por su cuenta la
+   suma de saldos, así que cualquier arreglo en el motor no llegaba a la
+   gráfica y el último punto podía no coincidir con el patrimonio de hoy. */
 function patrimonioEnFecha(fechaLimite){
-  let liquido=0;
-  DB.bancos.filter(b=>b.tipo!=='credito').forEach(b=>{
-    let v=num(b.saldoInicial);
-    DB.transacciones.forEach(t=>{
-      if(t.fecha>fechaLimite) return;
-      const m=num(t.monto);
-      if(t.bancoId===b.id){ if(t.tipo==='ingreso'||t.tipo==='retiro') v+=m; else v-=m; }
-      if(t.tipo==='transfer' && t.bancoDestinoId===b.id) v+=m;
-    });
-    liquido+=v;
-  });
-  let planes=0;
-  DB.transacciones.forEach(t=>{
-    if(t.fecha>fechaLimite || !t.metaId) return;
-    if(t.tipo==='ahorro') planes+=num(t.monto);
-    else if(t.tipo==='retiro') planes-=num(t.monto);
-  });
-  return Math.max(0, liquido+Math.max(0,planes));
+  const todas=DB.transacciones;
+  try{
+    DB.transacciones=todas.filter(t=>t.fecha<=fechaLimite);
+    return Engine.patrimonioTotal();
+  } finally {
+    DB.transacciones=todas;
+  }
 }
 function patrimonioHistorico(n){
   const out=[], now=new Date();
   for(let i=n-1;i>=0;i--){
     const dd=new Date(now.getFullYear(), now.getMonth()-i+1, 0); // último día de ese mes
     const key=dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0');
-    const limite = i===0 ? hoy() : dd.toISOString().slice(0,10);
-    out.push({m:key, valor:patrimonioEnFecha(limite)});
+    /* El último punto es el patrimonio tal como está hoy, con todo el libro
+       mayor incluido. Si se cortara en la fecha de hoy, un movimiento con
+       fecha futura (algo programado) ya estaría restado del saldo de la cuenta
+       y del número grande, pero no de la gráfica: los dos contarían historias
+       distintas en la misma pantalla. */
+    const limite = i===0 ? null : dd.toISOString().slice(0,10);
+    out.push({m:key, valor: limite ? patrimonioEnFecha(limite) : Engine.patrimonioTotal()});
   }
   return out;
 }
@@ -2119,9 +2327,13 @@ function esCategoriaFija(nombre){
   const c=DB.categorias.find(x=>x.nombre===nombre);
   return !!(c && c.fijo);
 }
+/* Un gasto cuenta para el ciclo solo si el dinero sale de TUS cuentas. Lo que
+   se carga a la tarjeta de crédito no sale hoy: se mide con la deuda, no con el
+   efectivo del ciclo. Esta es la misma condición que usa resumenCiclo. */
+function gastoDeEfectivo(t){ return t.tipo==='gasto' && !Engine.esGastoTC(t); }
 function gastoCorrienteDe(iso){
   return DB.transacciones.reduce((a,t)=>
-    (t.tipo==='gasto' && !Engine.esGastoTC(t) && t.fecha===iso && !esCategoriaFija(t.categoria))
+    (gastoDeEfectivo(t) && t.fecha===iso && !esCategoriaFija(t.categoria))
       ? a+num(t.monto) : a, 0);
 }
 
@@ -2130,15 +2342,21 @@ function fijosDelCiclo(ini,hasta,diasTotal){
   const fijas=DB.categorias.filter(c=>c.fijo);
   if(!fijas.length) return {esperado:0, gastado:0, pendiente:0, nombres:[]};
 
+  /* Solo gastos de efectivo en categorías fijas. Antes esta función SÍ contaba
+     los cargados a la tarjeta y resumenCiclo NO: la gasolina pagada con TC se
+     proyectaba como una salida de efectivo que nunca iba a ocurrir, y además
+     se descontaba dos veces de la proyección del ciclo. */
+  const cuenta = t => gastoDeEfectivo(t) && esCategoriaFija(t.categoria);
+
   /* Base: lo gastado en esas categorías por día, en una ventana amplia. */
   let primero=null;
-  DB.transacciones.forEach(t=>{ if(t.tipo==='gasto' && (!primero||t.fecha<primero)) primero=t.fecha; });
+  DB.transacciones.forEach(t=>{ if(cuenta(t) && (!primero||t.fecha<primero)) primero=t.fecha; });
   const finV=hasta, iniV=(primero && primero>fechaMenos(finV,59)) ? primero : fechaMenos(finV,59);
   const dias=Math.max(1,Math.round((new Date(finV+'T12:00:00')-new Date(iniV+'T12:00:00'))/86400000)+1);
 
   let total=0;
   DB.transacciones.forEach(t=>{
-    if(t.tipo!=='gasto' || !esCategoriaFija(t.categoria)) return;
+    if(!cuenta(t)) return;
     if(t.fecha<iniV || t.fecha>finV) return;
     total+=num(t.monto);
   });
@@ -2146,21 +2364,37 @@ function fijosDelCiclo(ini,hasta,diasTotal){
 
   let gastado=0;
   DB.transacciones.forEach(t=>{
-    if(t.tipo!=='gasto' || !esCategoriaFija(t.categoria)) return;
+    if(!cuenta(t)) return;
     if(t.fecha<ini || t.fecha>hasta) return;
     gastado+=num(t.monto);
   });
+  /* Solo las categorías fijas que de verdad tuvieron gasto en este ciclo: antes
+     se listaban todas las marcadas como fijas, tuvieran movimiento o no. */
+  const conGasto=new Set();
+  DB.transacciones.forEach(t=>{ if(cuenta(t) && t.fecha>=ini && t.fecha<=hasta) conGasto.add(t.categoria); });
   return {esperado, gastado, pendiente:Math.max(0,esperado-gastado),
+    activas:[...conGasto],
           nombres:fijas.map(c=>c.nombre)};
 }
 /** Promedio de gasto corriente en días de oficina y en el resto, con ventana
     amplia para que cada grupo tenga suficientes días. */
 function ritmosPorTipoDia(hasta,ventana){
-  const fin=hasta||hoy();
+  /* El día de hoy está a medias: incluirlo en el promedio lo hunde toda la
+     mañana y la app proyecta un ahorro que no es real. La ventana termina
+     ayer; si no hay historial suficiente, se usa hoy para no quedarse sin
+     datos. */
+  const tope=hasta||hoy();
+  const fin = tope===hoy() ? fechaMenos(tope,1) : tope;
   let ini=fechaMenos(fin, (ventana||44));
+  /* El arranque se recorta al primer gasto que de verdad cuenta para el ritmo:
+     antes se usaba el primer gasto de cualquier tipo, así que una compra con
+     tarjeta vieja alargaba la ventana con días en cero y bajaba el promedio. */
   let primero=null;
-  DB.transacciones.forEach(t=>{ if(t.tipo==='gasto' && (!primero||t.fecha<primero)) primero=t.fecha; });
+  DB.transacciones.forEach(t=>{
+    if(gastoDeEfectivo(t) && !esCategoriaFija(t.categoria) && (!primero||t.fecha<primero)) primero=t.fecha;
+  });
   if(primero && primero>ini) ini=primero;
+  if(ini>fin) return {oficina:0,normal:0,plano:0,diasOficina:0,diasNormal:0,fiable:false};
 
   let sO=0,nO=0,sN=0,nN=0, d=new Date(ini+'T12:00:00'), f=new Date(fin+'T12:00:00');
   while(d<=f){
@@ -2235,14 +2469,23 @@ function cicloActual(){
     return (mejor && mejorMonto>=300) ? mejor : mk;
   }).sort((x,y)=>x-y);
 
+  /* Dos marcas pueden terminar en el mismo día (días de pago muy juntos, o dos
+     marcas que se ajustan al mismo ingreso). Sin quitar las repetidas el ciclo
+     sale de cero días y el porcentaje de avance se va a infinito. */
+  const unicas=[];
+  for(const d of ajustadas){
+    if(!unicas.length || Math.round((d-unicas[unicas.length-1])/86400000)!==0) unicas.push(d);
+  }
+
   let ini=null,sig=null;
-  for(let i=0;i<ajustadas.length;i++){
-    if(ajustadas[i]<=hoyD){ ini=ajustadas[i]; sig=ajustadas[i+1]||null; }
+  for(let i=0;i<unicas.length;i++){
+    if(unicas[i]<=hoyD){ ini=unicas[i]; sig=unicas[i+1]||null; }
   }
   if(!ini||!sig) return null;
   const fin=new Date(sig.getTime()-86400000);
   const total=Math.round((fin-ini)/86400000)+1;
-  const transcurridos=Math.round((hoyD-ini)/86400000)+1;
+  if(total<1) return null;                       // ciclo imposible: mejor no mostrar nada
+  const transcurridos=clamp(Math.round((hoyD-ini)/86400000)+1,1,total);
   return {ini:fechaISO(ini), fin:fechaISO(fin), diasTotal:total,
           transcurridos, diasRestantes:Math.max(0,total-transcurridos)};
 }
@@ -2251,7 +2494,7 @@ function resumenCiclo(){
   const c=cicloActual(); if(!c) return null;
   const h=hoy();
   const dentro=t=>t.fecha>=c.ini && t.fecha<=h;
-  let entro=0, salio=0, corriente=0, fijo=0, aTarjeta=0, aBoveda=0;
+  let entro=0, salio=0, corriente=0, fijo=0, aTarjeta=0, aBoveda=0, retirado=0;
   DB.transacciones.forEach(t=>{
     if(!dentro(t)) return;
     const v=num(t.monto);
@@ -2269,13 +2512,25 @@ function resumenCiclo(){
     /* Mandar dinero a la bóveda lo saca de lo gastable igual que abonar a la
        tarjeta: sale del efectivo, pero no es gasto — sigue siendo tuyo. Se
        cuenta aparte porque no es lo mismo pagar deuda que guardar. */
-    else if(t.tipo==='transfer' && Engine.esBoveda(DB.bancos.find(x=>x.id===t.bancoDestinoId)||{})){
+    else if(Engine.esApartado(t)){
       salio+=v; aBoveda+=v;
     }
+    /* Sacar de la bóveda devuelve el dinero a lo gastable: deshace el apartado. */
+    else if(Engine.esDesapartado(t)){
+      salio-=v; aBoveda-=v;
+    }
+    /* Retirar de un plan devuelve dinero a la cuenta. No es un ingreso nuevo
+       (no crece el patrimonio), así que no entra en "entro": si entrara, la app
+       felicitaría por haber sacado dinero del ahorro. Se anota aparte para que
+       el ciclo sepa de dónde salió ese saldo. */
+    else if(t.tipo==='retiro') retirado+=v;
   });
 
-  /* Lo que ya tiene dueño: obligaciones que vencen de hoy al final del ciclo. */
-  let comprometido=0; const porPagar=[];
+  /* Lo que ya tiene dueño: lo que vence de aquí al final del ciclo Y lo que ya
+     venció y sigue sin pagar. Antes solo contaba de hoy en adelante, así que un
+     recibo vencido ayer desaparecía del compromiso y la app daba por disponible
+     un dinero que ya tenía dueño. */
+  let comprometido=0, vencido=0; const porPagar=[];
   DB.obligaciones.forEach(ob=>{
     const venc = ob.repite===false ? (ob.fecha||'') : fechaVencimiento(ob, mesDe(c.fin));
     let v2=venc;
@@ -2284,14 +2539,17 @@ function resumenCiclo(){
       const cand=[fechaVencimiento(ob,mesDe(c.ini)), fechaVencimiento(ob,mesDe(c.fin))];
       v2=cand.find(f=>f>=h && f<=c.fin) || cand.find(f=>f>=c.ini && f<=c.fin) || venc;
     }
-    if(!v2 || v2<h || v2>c.fin) return;
+    if(!v2 || v2>c.fin) return;
+    if(v2<c.ini) return;                       // de ciclos anteriores: no es de este
     const est=estadoObligacion(ob, mesDe(v2));
     if(est.estado==='pagada') return;
     const falta=Math.max(0, num(ob.monto)-est.pagado);
     if(falta<=0) return;
     comprometido+=falta;
-    porPagar.push({nombre:ob.nombre, monto:falta, venc:v2});
+    if(v2<h) vencido+=falta;
+    porPagar.push({nombre:ob.nombre, monto:falta, venc:v2, atrasada:v2<h});
   });
+  porPagar.sort((a,b)=>a.venc<b.venc?-1:a.venc>b.venc?1:0);
 
   /* "Libre" es el efectivo que queda DEL SUELDO de este ciclo, no todo lo que
      hay en las cuentas: sumar los ahorros daría un margen que en realidad no se
@@ -2303,7 +2561,11 @@ function resumenCiclo(){
      bóveda: mover dinero entre bolsillos dejaba el margen en negativo y la app
      decía "no deberías gastar más" con mil quetzales en la cuenta. */
   const disponible=Engine.disponibleTotal();
-  const base = entro>0 ? 'ciclo' : 'saldo';
+  /* El ciclo se mide contra el sueldo solo si de verdad entró un sueldo. Antes
+     bastaba cualquier ingreso mayor que cero: un reembolso de Q9 cambiaba toda
+     la lectura del ciclo y la meta sugerida caía a cero. Mismo umbral que usa
+     cicloActual para reconocer un pago real. */
+  const base = entro>=300 ? 'ciclo' : 'saldo';
   const libre = disponible - comprometido;
   const ritmo = c.transcurridos>0 ? corriente/c.transcurridos : 0;
   /* Lo que falta por gastar se proyecta día por día, no con un promedio plano:
@@ -2325,7 +2587,7 @@ function resumenCiclo(){
      del ingreso, que es una cifra con la que casi siempre se puede. */
   const cfg=cicloCfg();
   const metaFijada = num(cfg.meta)>0 ? num(cfg.meta) : 0;
-  const meta = metaFijada || (entro>0 ? Math.round(entro*0.3/10)*10 : 0);
+  const meta = metaFijada || (base==='ciclo' ? Math.round(entro*0.3/10)*10 : 0);
 
   /* El gasto diario que SÍ se puede mostrar: el que no toca la meta. Enseñar
      "te quedan X por día" sobre todo el disponible convierte el sobrante en
@@ -2333,17 +2595,17 @@ function resumenCiclo(){
   /* El techo diario no puede pasar del efectivo que realmente queda: tras
      apartar dinero a la bóveda, la meta seguiría permitiendo gastar un monto
      que ya no está en la cuenta. */
-  const margen = Math.min(Math.max(0, sinGastarMas - meta), Math.max(0, libre));
+  const margen = margenDeMeta({sinGastarMas, libre}, meta);
   const porDia = c.diasRestantes>0 ? margen/c.diasRestantes : margen;
 
   /* Lo máximo que se puede mandar a la bóveda hoy sin quedarse corto: el
      efectivo libre menos lo que, al ritmo actual, falta por gastar. */
   const apartable = Math.max(0, libre - restante);
 
-  return Object.assign({}, c, {entro, salio, corriente, ritmo, comprometido, porPagar,
+  return Object.assign({}, c, {entro, salio, corriente, ritmo, comprometido, vencido, porPagar,
                                disponible, libre, base, sinGastarMas, proyectado,
                                meta, metaFijada:!!metaFijada, margen, porDia, apartable,
-                               ritmos, restante, fijo, fijos, aTarjeta, aBoveda});
+                               ritmos, restante, fijo, fijos, aTarjeta, aBoveda, retirado});
 }
 
 function renderCiclo(){
@@ -2359,11 +2621,17 @@ function renderCiclo(){
 
   /* El protagonista es lo que se va a quedar, no lo que se puede gastar. */
   const cumple = r.meta>0 && r.proyectado>=r.meta;
+  const falta  = r.proyectado<0;                 // al ritmo actual no alcanza
   const col = r.proyectado<=0 ? 'var(--coral)' : (cumple ? 'var(--teal)' : 'var(--gold)');
-  $('cicloTitulo').textContent = r.base==='ciclo'
-    ? (r.diasRestantes===0 ? 'Ahorraste en este ciclo' : 'Vas a ahorrar')
-    : 'Disponible en tus cuentas';
-  $('cicloLibre').textContent=Engine.format(Math.max(0,r.proyectado));
+  $('cicloTitulo').textContent = falta
+    ? 'Al ritmo de ahora te va a faltar'
+    : (r.base==='ciclo'
+        ? (r.diasRestantes===0 ? 'Ahorraste en este ciclo' : 'Vas a ahorrar')
+        : 'Disponible en tus cuentas');
+  /* Un faltante se muestra como faltante. Antes se recortaba a cero y la
+     tarjeta decía "Vas a ahorrar Q0.00" cuando en realidad iba camino a
+     quedarse corto: el único aviso era el color. */
+  $('cicloLibre').textContent=(falta?'−':'')+Engine.format(Math.abs(r.proyectado));
   $('cicloLibre').style.color=col;
 
   if(r.meta>0){
@@ -2405,11 +2673,14 @@ function renderCiclo(){
   const piezas = r.base==='ciclo'
     ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'gastaste <b>'+Engine.format(r.corriente)+'</b>']
     : ['Aún no registras el ingreso de este ciclo, así que esto mide el saldo de tus cuentas'];
-  if(r.fijo>0.5) piezas.push('<b>'+Engine.format(r.fijo)+'</b> en fijos ('+r.fijos.nombres.join(', ')+')');
+  if(r.fijo>0.5) piezas.push('<b>'+Engine.format(r.fijo)+'</b> en fijos ('+
+    ((r.fijos.activas&&r.fijos.activas.length?r.fijos.activas:r.fijos.nombres).join(', '))+')');
   if(r.aTarjeta>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(r.aTarjeta)+'</b> a la tarjeta (eso también es ahorro)');
   if(r.aBoveda>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(r.aBoveda)+'</b> guardado en la bóveda');
   if(r.comprometido>0) piezas.push('<b style="color:var(--gold)">'+Engine.format(r.comprometido)+'</b> ya tiene dueño ('
-      +r.porPagar.map(p=>esc(p.nombre)).join(', ')+')');
+      +r.porPagar.map(p=>esc(p.nombre)+(p.atrasada?' ⚠️':'')).join(', ')+')');
+  if(r.vencido>0.5) piezas.push('<b style="color:var(--coral)">'+Engine.format(r.vencido)+'</b> de eso ya venció');
+  if(r.retirado>0.5) piezas.push('<b>'+Engine.format(r.retirado)+'</b> que sacaste de tus planes');
   if(r.libre>0) piezas.push('te quedan <b>'+Engine.format(r.libre)+'</b> en efectivo');
   $('cicloDetalle').innerHTML=piezas.join(' · ')+'.';
 }
@@ -2440,10 +2711,16 @@ function marcarMetaChip(){
   const v=$('metaCicloMonto').value;
   $('metaCicloChips').querySelectorAll('[data-meta]').forEach(b=>b.classList.toggle('on',b.dataset.meta===String(num(v))));
 }
+/* El margen de una meta se calcula en un solo sitio. Antes la tarjeta del ciclo
+   y este panel usaban fórmulas distintas —a este le faltaba el techo del
+   efectivo disponible— y para la misma meta decían dos cifras diferentes. */
+function margenDeMeta(r, meta){
+  return Math.min(Math.max(0, r.sinGastarMas - meta), Math.max(0, r.libre));
+}
 function ayudaMetaCiclo(){
   const r=resumenCiclo(); if(!r) return;
   const meta=parseMonto($('metaCicloMonto').value);
-  const margen=Math.max(0,r.sinGastarMas-meta);
+  const margen=margenDeMeta(r, meta);
   const porDia=r.diasRestantes>0?margen/r.diasRestantes:margen;
   $('metaCicloAyuda').innerHTML = meta<=0
     ? 'Sin meta, la app solo te muestra cuánto vas a ahorrar al ritmo que llevas.'
@@ -2485,11 +2762,16 @@ function renderSpark(){
   let acc=0;
   for(let d=1;d<=dias;d++){
     const f=mesSel+'-'+String(d).padStart(2,'0');
+    /* Misma regla de signos que el resto de la app: entra lo que entra, sale
+       lo que sale de las cuentas, el consumo con tarjeta no toca el efectivo
+       y mover dinero entre cuentas propias no es ni lo uno ni lo otro.
+       Antes esta línea tenía su propia regla y podía contar una historia
+       distinta de la del neto que estaba justo al lado. */
     for(const t of DB.transacciones){
       if(t.fecha!==f) continue; const v=num(t.monto);
       if(t.tipo==='ingreso'||t.tipo==='retiro') acc+=v;
-      else if(Engine.esGastoTC(t)) continue;
-      else if(t.tipo!=='transfer') acc-=v;
+      else if(t.tipo==='gasto') { if(!Engine.esGastoTC(t)) acc-=v; }
+      else if(t.tipo==='tarjeta'||t.tipo==='ahorro') acc-=v;
     }
     pts.push(acc);
   }
@@ -2611,8 +2893,9 @@ const METRICAS={
     e:'Todo el dinero que entró a tus cuentas este mes: sueldo, ventas, reembolsos, cualquier cosa que sumó.'},
   gastos:{t:'Gastos',f:t=>t.tipo==='gasto'&&!Engine.esGastoTC(t),
     e:'Lo que salió de tus propias cuentas. No incluye lo que pagaste con tarjeta de crédito: ese dinero es del banco y se mide aparte.'},
-  ahorros:{t:'Ahorrado',f:t=>t.tipo==='ahorro',
-    e:'Dinero que sacaste de una cuenta y apartaste en un plan de ahorro. Sigue siendo tuyo, solo cambió de bolsillo, por eso no cuenta como gasto.'},
+  ahorros:{t:'Ahorrado',f:t=>t.tipo==='ahorro'||Engine.esApartado(t)||Engine.esDesapartado(t),
+    signo:t=>Engine.esDesapartado(t)?-1:1,
+    e:'Dinero que apartaste: aportes a un plan de ahorro y lo que mandaste a tu bóveda. Sigue siendo tuyo, solo cambió de bolsillo, por eso no cuenta como gasto. Lo que sacaste de la bóveda se resta.'},
   gastosTC:{t:'Con tarjeta',f:t=>Engine.esGastoTC(t),
     e:'Lo que consumiste con tarjeta de crédito. No baja tu patrimonio: aumenta tu deuda con el banco hasta el día que la abonas.'},
   pagosTC:{t:'Pagos a la tarjeta',f:t=>t.tipo==='tarjeta',
@@ -2643,7 +2926,9 @@ function abrirMetrica(k){
   }
   const M=METRICAS[k]; if(!M) return;
   const arr=Engine.txMes(mesSel).filter(M.f);
-  const total=arr.reduce((a,t)=>a+num(t.monto),0);
+  /* El total del desglose tiene que sumar igual que la tarjeta del tablero:
+     hay métricas con movimientos que restan (sacar de la bóveda). */
+  const total=arr.reduce((a,t)=>a+num(t.monto)*(M.signo?M.signo(t):1),0);
   const html=`<div class="card tight" style="margin-bottom:12px">
       <div class="strat-intro">${M.e}</div>
       <div class="minirow" style="margin-top:10px"><span>Total en ${nombreMes(mesSel)}</span><b class="num">${Engine.format(total)}</b></div>
@@ -2702,11 +2987,18 @@ function fechaLarga(f){
   return isNaN(d)?f:d.toLocaleDateString('es-GT',{weekday:'short',day:'numeric',month:'short'});
 }
 function estadoObligacion(ob,m){
+  const venc=fechaVencimiento(ob,m), h=hoy();
+  /* Un pago cuenta para el vencimiento más cercano, no para el mes del
+     calendario. Antes se miraba solo el mes del vencimiento: pagar el recibo
+     del 10 de noviembre el 30 de octubre lo dejaba como impago en noviembre
+     —y además lo seguía reservando como compromiso— mientras aparecía como
+     pagado en octubre. La ventana va de 10 días antes a 20 después, así que
+     con vencimientos mensuales no se solapa con el mes vecino. */
+  const desde=fechaMenos(venc,10), hasta=fechaMas(venc,20);
   const pagos = ob.repite===false
     ? DB.transacciones.filter(t=>t.obligacionId===ob.id)
-    : Engine.txMes(m).filter(t=>t.obligacionId===ob.id);
+    : DB.transacciones.filter(t=>t.obligacionId===ob.id && t.fecha>=desde && t.fecha<=hasta);
   const pagado=pagos.reduce((a,t)=>a+num(t.monto),0);
-  const venc=fechaVencimiento(ob,m), h=hoy();
   const dias=Math.round((new Date(venc+'T12:00:00')-new Date(h+'T12:00:00'))/86400000);
   let estado='pendiente';
   if(pagado>=num(ob.monto)-0.01) estado='pagada';
@@ -2759,10 +3051,25 @@ function openObModal(id){
   $('obFecha').min = (fOb && fOb<hoy()) ? fOb : hoy();
   $('obRepite').checked = o ? o.repite!==false : true;
   $('obTipo').value=o?o.tipo:'gasto';
+  /* A qué tarjeta corresponde (solo si se registra como pago de tarjeta) */
+  $('obTarjeta').innerHTML = DB.bancos.filter(b=>b.tipo==='credito')
+    .map(b=>'<option value="'+b.id+'">'+b.nombre+(b.last4?' ·'+b.last4:'')+'</option>').join('')
+    || '<option value="">No tienes tarjetas registradas</option>';
+  $('obTarjeta').value = (o&&o.tarjetaId) || (DB.bancos.find(b=>b.tipo==='credito')||{}).id || '';
+  /* Categoría con la que se registra el pago, para que cuente en el presupuesto */
+  $('obCategoria').innerHTML = '<option value="">Obligaciones</option>' +
+    DB.categorias.map(c=>'<option value="'+esc(c.nombre)+'">'+(c.icono||'')+' '+esc(c.nombre)+'</option>').join('');
+  $('obCategoria').value = (o&&o.categoria) || '';
+  actualizarObTipoCampos();
   actualizarObFechaHint();
   renderIconPicker('obIconos',ICONOS_OB,o?o.icono:'💡');
   $('obDelete').classList.toggle('hide',!o);
   openSheet('sheetOb');
+}
+function actualizarObTipoCampos(){
+  const esTC = $('obTipo').value==='tarjeta';
+  $('obTarjetaWrap').classList.toggle('hide',!esTC);
+  $('obCatWrap').classList.toggle('hide',esTC);
 }
 function actualizarObFechaHint(){
   const f=$('obFecha').value, rep=$('obRepite').checked;
@@ -2786,8 +3093,11 @@ function guardarObligacion(e){
   }
   const p={nombre:$('obNombre').value.trim(),monto:parseMonto($('obMonto').value),
     dia:clamp(Number(f.slice(8)),1,31), fecha:f, repite:$('obRepite').checked,
-    tipo:$('obTipo').value,icono:pick('#obIconos .on','i','🧾')};
+    tipo:$('obTipo').value,icono:pick('#obIconos .on','i','🧾'),
+    tarjetaId: $('obTipo').value==='tarjeta' ? ($('obTarjeta').value||null) : null,
+    categoria: $('obTipo').value==='tarjeta' ? 'Tarjeta' : ($('obCategoria').value||'')};
   if(!p.nombre||p.monto<=0){ showToast('Completa nombre y monto'); return; }
+  if(p.tipo==='tarjeta' && !p.tarjetaId){ showToast('Elige a qué tarjeta corresponde'); return; }
   const clave=x=>(x.nombre||'').trim().toLowerCase();
   const repetida=DB.obligaciones.find(o=>o.id!==id && clave(o)===clave(p) && (o.fecha||'')===p.fecha);
   if(repetida){ showToast('Ya tienes "'+repetida.nombre+'" con esa misma fecha'); return; }
@@ -2827,19 +3137,23 @@ function guardarPagoObligacion(e){
   const monto=parseMonto($('obPagoMonto').value);
   if(monto<=0){ showToast('El monto debe ser mayor a cero'); return; }
   const obg=DB.obligaciones.find(o=>o.id===$('obPagoId').value);
+  let tjId=null;
   if(obg&&obg.tipo==='tarjeta'){
-    const tj=DB.bancos.find(b=>b.tipo==='credito');
-    if(tj){
-      const deuda=Engine.bancoValor(tj), lim=num(tj.limite);
-      const tope=lim>0?Math.min(deuda,lim):deuda;
-      if(monto>tope+0.01){ showToast('No puedes abonar más de '+Engine.format(tope)+' a '+tj.nombre); return; }
-    }
+    tjId=tarjetaDeObligacion(obg);
+    if(!tjId){ showToast('Abre «'+obg.nombre+'» y elige a qué tarjeta corresponde'); return; }
+    const tj=DB.bancos.find(b=>b.id===tjId);
+    /* El tope es la deuda real: si debe más que el límite (intereses, mora),
+       tiene que poder abonar esa deuda completa. */
+    const tope=Engine.bancoValor(tj);
+    if(tope<=0.01){ showToast(tj.nombre+' no tiene deuda por pagar'); return; }
+    if(monto>tope+0.01){ showToast('No puedes abonar más de '+Engine.format(tope)+' a '+tj.nombre); return; }
   }
   const banco=$('obPagoBanco').value;
   if(!banco){ showToast('Elige de qué cuenta o tarjeta se paga'); return; }
+  if(tjId && banco===tjId){ showToast('Esa tarjeta no se puede pagar con ella misma'); return; }
   const errO=validarSalida(banco,monto);
   if(errO){ showToast(errO); return; }
-  postAction('pagarOb',{obligacionId:$('obPagoId').value,monto,bancoId:banco,fecha:$('obPagoFecha').value});
+  postAction('pagarOb',{obligacionId:$('obPagoId').value,monto,bancoId:banco,fecha:$('obPagoFecha').value,tarjetaId:tjId});
   closeSheet('sheetObPago');
   const bc=DB.bancos.find(b=>b.id===banco);
   const st=obg?estadoObligacion(obg,mesSel).estado:'';
@@ -3034,8 +3348,9 @@ function guardarTransaccion(e){
     if(!p.tarjetaId&&DB.bancos.some(b=>b.tipo==='credito')){ showToast('Elige la tarjeta que estás abonando'); return; }
     const tj=DB.bancos.find(b=>b.id===p.tarjetaId);
     if(tj){
-      const deuda=Engine.bancoValor(tj), lim=num(tj.limite);
-      const tope=lim>0?Math.min(deuda,lim):deuda;
+      /* El tope de un abono es la deuda, no el límite: si por intereses o mora
+         debes más que el límite, tienes que poder pagar todo lo que debes. */
+      const tope=Engine.bancoValor(tj);
       if(tope<=0){ showToast(tj.nombre+' no tiene deuda por pagar'); return; }
       if(monto>tope+0.01){ showToast('No puedes abonar más de '+Engine.format(tope)+' a '+tj.nombre); return; }
     }
@@ -3484,11 +3799,15 @@ function renderPresupuesto(){
   const obligPend=obligacionesDe(mesSel).reduce((a,o)=>{
     const {pagado}=estadoObligacion(o,mesSel); return a+Math.max(0,num(o.monto)-pagado);
   },0);
+  /* El reparto necesita el total del mes, no solo lo que falta: si ya pagaste
+     la mitad, repartir "lo que falta" hacía que la barra marcara 100% con el
+     trabajo a medias. */
+  const obligTotal=obligacionesDe(mesSel).reduce((a,o)=>a+num(o.monto),0);
   const aportes=DB.metas.reduce((a,m)=>a+num(m.aporte),0);
   const libre=t.ingresos-t.gastos-t.tarjeta-t.ahorros-obligPend;
   const diario=libre/restantes;
   const transcurridos=esActual?new Date().getDate():dias;
-  renderEstrategia(t,{diario,restantes,obligPend,aportes,libre,transcurridos});
+  renderEstrategia(t,{diario,restantes,obligPend,obligTotal,aportes,libre,transcurridos});
   renderBudgets();
 }
 function consejos503020(t,x){
@@ -3554,7 +3873,7 @@ function montoReparto(t){
   return g>0?g:t.ingresos;
 }
 function planesReparto(base,x){
-  const r=rolesBancos(), deuda=Engine.deudaTC(), obl=x.obligPend;
+  const r=rolesBancos(), deuda=Engine.deudaTC(), obl=num(x.obligTotal)||x.obligPend;
   const nm=(b,alt)=>b?b.nombre:alt;
   const mk=(id,nombre,resumen,filas)=>({id,nombre,resumen,filas});
   // A — Equilibrio: cubre lo fijo, ahorra 20%, abona algo a la tarjeta
@@ -3590,11 +3909,17 @@ function planesReparto(base,x){
   }
   return [A,B];
 }
+/* Cuánto llevas cubierto de cada renglón del reparto. Lo pagado a obligaciones
+   NO puede volver a contar en "gasto diario" ni en "abono a la tarjeta": antes
+   sí lo hacía y las cuatro barras sumaban más que el sueldo repartido. */
 function realDe(clave,t){
+  const deOblig = Engine.txMes(mesSel).filter(x=>x.obligacionId);
+  const sumaOblig = tipo => deOblig.reduce((a,x)=>x.tipo===tipo?a+num(x.monto):a,0);
   if(clave==='🧾') return obligacionesDe(mesSel).reduce((a,o)=>a+estadoObligacion(o,mesSel).pagado,0);
   if(clave==='🐖') return t.ahorros;
-  if(clave==='💳') return t.tarjeta;
-  return t.gastos;
+  if(clave==='💳') return Math.max(0, t.tarjeta - sumaOblig('tarjeta'));
+  return Math.max(0, t.gastos - deOblig.reduce((a,x)=>
+    (x.tipo==='gasto' && !Engine.esGastoTC(x)) ? a+num(x.monto) : a, 0));
 }
 function renderReparto(t,x){
   if(!DB.bancos.length) return '<div class="empty"><b>Primero registra tus cuentas</b>El reparto necesita saber entre qué cuentas dividir tu sueldo.</div>';
@@ -3655,8 +3980,21 @@ function consejosReparto(t,x){
     const pct=lim>0?Math.round(deuda/lim*100):0;
     out.push(tip('💳','Debes '+Engine.format(deuda)+' de tarjeta'+(lim>0?' ('+pct+'% del límite)':'')+'. Con la opción A tardarías unos '+Math.ceil(deuda/Math.max(1,base*0.10))+' mes(es) en liquidarla; con la B, unos '+Math.ceil(deuda/Math.max(1,base*0.30))+'.'));
   }else out.push(tip('✅','No debes nada de tarjeta. Ese margen conviene que se vaya a tus planes de ahorro antes de que se convierta en gasto.'));
-  const falta=DB.metas.reduce((a,m)=>a+Math.max(0,num(m.objetivo)-num(m.actual)),0);
-  if(falta>0) out.push(tip('🎯','Te faltan '+Engine.format(falta)+' para completar todos tus planes. Con el 20% de este reparto ('+Engine.format(base*0.2)+' al mes) los terminarías en unos '+Math.ceil(falta/Math.max(1,base*0.2))+' mes(es).'));
+  const falta=DB.metas.reduce((a,m)=>a+Math.max(0,num(m.objetivo)-Engine.enPlan(m.id)),0);
+  if(falta>0){
+    /* El porcentaje de ahorro depende de la opción elegida: A guarda el 20%,
+       B con deuda baja al 10% y B sin deuda sube al 30%. Antes el consejo
+       daba siempre el 20% y, con la opción B elegida, el plazo era mentira. */
+    const sel0=(DB.config.reparto&&DB.config.reparto.mes===mesSel)?DB.config.reparto.opcion:null;
+    const pctAho = sel0==='deuda' ? 0.10 : sel0==='meta' ? 0.30 : 0.20;
+    const comoDice = sel0==='deuda' ? 'Con el 10% que deja la opción B'
+                   : sel0==='meta'  ? 'Con el 30% de la opción B'
+                   : 'Con el 20% de la opción A';
+    const porMes=base*pctAho;
+    out.push(tip('🎯','Te faltan '+Engine.format(falta)+' para completar todos tus planes. '
+      +comoDice+' ('+Engine.format(porMes)+' al mes) los terminarías en unos '
+      +Math.ceil(falta/Math.max(1,porMes))+' mes(es).'));
+  }
   const sel=(DB.config.reparto&&DB.config.reparto.mes===mesSel)?DB.config.reparto.opcion:null;
   if(!sel) out.push(tip('👆','Elige una de las dos opciones para que la app empiece a medir cuánto llevas cumplido del plan.'));
   else out.push(tip('📈','Estás siguiendo el plan elegido. Las barras de cada línea se mueven solas conforme registras pagos, abonos y gastos.'));
@@ -4390,18 +4728,34 @@ function construirReporte(m){
   const t=Engine.recalculate(m);
   const gs=Engine.txMes(m).filter(x=>x.tipo==='gasto'&&!Engine.esGastoTC(x));
   const map={}; gs.forEach(x=>{const k=x.categoria||'Sin categoría';map[k]=(map[k]||0)+num(x.monto);});
-  return {
-    mes:m, generado:new Date().toISOString(),
+  /* Los saldos del reporte son los del ÚLTIMO DÍA de ese mes, no los de hoy.
+     Antes se guardaban los de hoy bajo el título "Saldos al cierre": el
+     reporte de un mes viejo mostraba la deuda y el patrimonio actuales. */
+  const cierre=m+'-'+String(diasEnMes(m)).padStart(2,'0');
+  const todas=DB.transacciones;
+  let saldos;
+  try{
+    DB.transacciones=todas.filter(x=>x.fecha<=cierre);
+    saldos={
+      deudaTC:Engine.deudaTC(), limiteTC:Engine.limiteTC(),
+      patrimonio:Engine.patrimonioTotal(), enPlanes:Engine.enPlanes(),
+      bancos:DB.bancos.map(b=>({n:b.nombre,tipo:b.tipo,v:Engine.bancoValor(b)})),
+      metas:DB.metas.map(x=>({n:x.nombre,a:Engine.enPlan(x.id),o:num(x.objetivo)}))
+    };
+  } finally { DB.transacciones=todas; }
+  return Object.assign({
+    mes:m, generado:new Date().toISOString(), cierre:cierre,
     ingresos:t.ingresos, gastos:t.gastos, neto:t.neto, ahorros:t.ahorros,
     gastosTC:t.gastosTC, pagosTC:t.tarjeta,
-    deudaTC:Engine.deudaTC(), limiteTC:Engine.limiteTC(),
-    patrimonio:Engine.patrimonioTotal(), enPlanes:Engine.enPlanes(),
     movimientos:Engine.txMes(m).length,
     categorias:Object.entries(map).sort((a,b)=>b[1]-a[1]),
-    bancos:DB.bancos.map(b=>({n:b.nombre,tipo:b.tipo,v:Engine.bancoValor(b)})),
-    metas:DB.metas.map(x=>({n:x.nombre,a:num(x.actual),o:num(x.objetivo)})),
-    obligaciones:obligacionesDe(m).map(o=>{const e=estadoObligacion(o,m);return {n:o.nombre,monto:num(o.monto),pagado:e.pagado,estado:e.estado};})
-  };
+    /* Solo las obligaciones que de verdad existían y vencían en ese mes: antes
+       se listaban también las creadas después y las de pago único de otros
+       meses, así que un reporte viejo nombraba recibos inexistentes. */
+    obligaciones:obligacionesDe(m)
+      .filter(o=>o.repite!==false || mesDe(o.fecha||'')===m)
+      .map(o=>{const e=estadoObligacion(o,m);return {n:o.nombre,monto:num(o.monto),pagado:e.pagado,estado:e.estado};})
+  }, saldos);
 }
 let repVer=null;
 function generarReporte(){
@@ -4461,8 +4815,21 @@ function autoReportes(avisar){
   const actual=mesActualSistema();
   const meses=[...new Set(DB.transacciones.map(t=>mesDe(t.fecha)).filter(Boolean))]
     .filter(m=>m<actual).sort();
-  let nuevos=[];
-  meses.forEach(m=>{ if(!DB.reportes[m]){ DB.reportes[m]=construirReporte(m); nuevos.push(m); } });
+  let nuevos=[], refrescados=0;
+  /* Huella del mes: si después de cerrarlo se agrega, edita o borra un
+     movimiento, el reporte guardado se queda desfasado y no vuelve a
+     recalcularse nunca. Con la huella se detecta y se regenera. */
+  const huella=m=>Engine.txMes(m)
+    .map(t=>t.id+':'+t.tipo+':'+num(t.monto).toFixed(2)+':'+(t.categoria||''))
+    .sort().join('|');
+  meses.forEach(m=>{
+    const h=huella(m);
+    if(!DB.reportes[m]){ DB.reportes[m]=construirReporte(m); DB.reportes[m].huella=h; nuevos.push(m); }
+    else if(DB.reportes[m].huella!==h){
+      DB.reportes[m]=construirReporte(m); DB.reportes[m].huella=h; refrescados++;
+    }
+  });
+  if(refrescados && !nuevos.length) saveDB();
   if(nuevos.length){
     saveDB();
     const ult=nuevos[nuevos.length-1];
@@ -4612,8 +4979,21 @@ function marcaTiempo(){
 function exportToExcel(automatico){
   if(typeof XLSX==='undefined'){ showToast('Necesitas conexión para generar el Excel'); return; }
   const wb=XLSX.utils.book_new();
+  /* Excel solo guarda texto y números: un objeto o una lista se aplanaban a
+     "[object Object]" y al restaurar se perdían el ciclo de pago, los días de
+     oficina, los comercios aprendidos, los avisos y hasta el PIN. Se guardan
+     como texto JSON, que sí sobrevive el viaje. */
+  const planaConfig={};
+  Object.keys(DB.config||{}).forEach(k=>{
+    const v=DB.config[k];
+    planaConfig[k] = (v!==null && typeof v==='object') ? 'json:'+JSON.stringify(v) : v;
+  });
   const hojas={Transacciones:DB.transacciones,Bancos:DB.bancos,Categorias:DB.categorias,
-    Obligaciones:DB.obligaciones,Metas:DB.metas,Configuracion:[DB.config]};
+    Obligaciones:DB.obligaciones,Metas:DB.metas,Configuracion:[planaConfig],
+    /* Los reportes cerrados y los avisos ya descartados también son datos:
+       sin ellos, al restaurar vuelven a saltar avisos que ya habías visto. */
+    Reportes:Object.keys(DB.reportes||{}).map(m=>({mes:m,datos:'json:'+JSON.stringify(DB.reportes[m])})),
+    Descartadas:(DB.descartadas||[]).map(d=>({clave:typeof d==='object'?JSON.stringify(d):d}))};
   Object.entries(hojas).forEach(([n,d])=>{
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d.length?d:[{}]),n);
   });
@@ -4719,6 +5099,7 @@ function desdeJSON(txt){
   });
   if(cuerpo.config) nuevo.config=Object.assign(nuevo.config,cuerpo.config);
   if(cuerpo.reportes) nuevo.reportes=cuerpo.reportes;
+  if(Array.isArray(cuerpo.descartadas)) nuevo.descartadas=cuerpo.descartadas;
   return nuevo;
 }
 
@@ -4734,6 +5115,17 @@ function desdeExcel(buffer){
     Object.keys(x).forEach(k=>{ if(x[k]==='') delete x[k]; });
     return x;
   };
+  /* Excel en español escribe los booleanos como VERDADERO y FALSO. Sin esta
+     conversión, "FALSO" es texto no vacío y por tanto verdadero: una cuenta
+     normal se convertía en bóveda al restaurar y su saldo desaparecía del
+     disponible. Vale para cualquier campo de sí/no. */
+  const siNo=v=>{
+    if(v===true||v===1) return true;
+    if(v===false||v===0||v==null) return false;
+    const s=String(v).trim().toLowerCase();
+    return s==='true'||s==='1'||s==='si'||s==='sí'||s==='verdadero'||s==='v'||s==='x';
+  };
+  const booleanos=(x,campos)=>{ campos.forEach(k=>{ if(x[k]!=null) x[k]=siNo(x[k]); }); return x; };
   const nuevo=dbVacia();
   nuevo.transacciones=hoja('Transacciones').filter(t=>t.id||t.monto).map(t=>{
     const x=limpiar(t);
@@ -4743,41 +5135,60 @@ function desdeExcel(buffer){
     ['bancoId','bancoDestinoId','tarjetaId','metaId','obligacionId'].forEach(k=>{
       if(x[k]!=null) x[k]=String(x[k]);
     });
-    if(x.esTC!=null) x.esTC = x.esTC===true || x.esTC==='true' || x.esTC===1 || x.esTC==='1';
-    if(x.auto!=null) x.auto = x.auto===true || x.auto==='true' || x.auto===1 || x.auto==='1';
-    return x;
+    return booleanos(x,['esTC','auto']);
   });
   nuevo.bancos=hoja('Bancos').filter(b=>b.nombre).map(b=>{
     const x=limpiar(b);
     x.id=String(x.id||uid());
     ['saldoInicial','deudaInicial','limite'].forEach(k=>{ if(x[k]!=null) x[k]=num(x[k]); });
     if(x.last4!=null) x.last4=String(x.last4).replace(/\D/g,'').slice(-4);
-    return x;
+    return booleanos(x,['boveda','archivado']);
   });
   nuevo.categorias=hoja('Categorias').filter(c=>c.nombre).map(c=>{
-    const x=limpiar(c); x.id=String(x.id||uid()); x.limite=num(x.limite); return x;
+    const x=limpiar(c); x.id=String(x.id||uid()); x.limite=num(x.limite);
+    return booleanos(x,['fijo']);
   });
   nuevo.obligaciones=hoja('Obligaciones').filter(o=>o.nombre).map(o=>{
     const x=limpiar(o);
     x.id=String(x.id||uid());
     x.monto=num(x.monto); x.dia=num(x.dia)||1;
     if(x.fecha) x.fecha=formatDateCell(x.fecha);
-    if(x.repite!=null) x.repite = !(x.repite===false || x.repite==='false' || x.repite===0 || x.repite==='0');
+    if(x.repite!=null) x.repite=siNo(x.repite);
+    if(x.tarjetaId!=null) x.tarjetaId=String(x.tarjetaId);
     return x;
   });
   nuevo.metas=hoja('Metas').filter(m=>m.nombre).map(m=>{
     const x=limpiar(m);
     x.id=String(x.id||uid());
-    ['objetivo','actual','aporte'].forEach(k=>{ if(x[k]!=null) x[k]=num(x[k]); });
-    return x;
+    ['objetivo','actual','aporte','aparteIngresoPct'].forEach(k=>{ if(x[k]!=null) x[k]=num(x[k]); });
+    return booleanos(x,['redondeo']);
   });
   const cfg=hoja('Configuracion')[0];
   if(cfg){
     const c=limpiar(cfg);
-    /* Excel aplana los objetos a texto; solo recuperamos lo que es dato simple. */
-    Object.keys(c).forEach(k=>{ if(typeof c[k]==='string' && c[k].trim().startsWith('[object')) delete c[k]; });
+    Object.keys(c).forEach(k=>{
+      const v=c[k];
+      /* Lo que se guardó como JSON se vuelve a armar: ciclo, días de oficina,
+         comercios, iconos, preferencias de aviso, reparto. */
+      if(typeof v==='string' && v.indexOf('json:')===0){
+        try{ c[k]=JSON.parse(v.slice(5)); }catch(e){ delete c[k]; }
+      }
+      /* Y lo que viene de un respaldo viejo, aplanado por Excel, se descarta
+         en vez de quedarse como el texto "[object Object]". */
+      else if(typeof v==='string' && v.trim().indexOf('[object')===0) delete c[k];
+    });
     nuevo.config=Object.assign(nuevo.config,c);
   }
+  /* Reportes cerrados y avisos ya descartados */
+  hoja('Reportes').filter(r=>r.mes&&r.datos).forEach(r=>{
+    const s=String(r.datos);
+    try{ nuevo.reportes[String(r.mes)]=JSON.parse(s.indexOf('json:')===0?s.slice(5):s); }catch(e){}
+  });
+  const desc=hoja('Descartadas').filter(d=>d.clave).map(d=>{
+    const s=String(d.clave);
+    try{ return (s[0]==='{'||s[0]==='[') ? JSON.parse(s) : s; }catch(e){ return s; }
+  });
+  if(desc.length) nuevo.descartadas=desc;
   return nuevo;
 }
 
@@ -4880,7 +5291,10 @@ function exportarJSON(){
   const datos={
     app:'Caudal', version:1, generado:new Date().toISOString(),
     transacciones:DB.transacciones, bancos:DB.bancos, categorias:DB.categorias,
-    obligaciones:DB.obligaciones, metas:DB.metas, config:DB.config, reportes:DB.reportes||{}
+    obligaciones:DB.obligaciones, metas:DB.metas, config:DB.config, reportes:DB.reportes||{},
+    /* Los avisos ya descartados viajan con el respaldo: sin ellos, al
+       restaurar vuelven a saltar advertencias que ya habías atendido. */
+    descartadas:DB.descartadas||[]
   };
   const txt=JSON.stringify(datos);
   const nombre='Caudal_Respaldo_'+marcaTiempo()+'.json';
@@ -5070,6 +5484,7 @@ function wire(){
   };
   $('obPagoForm').onsubmit=guardarPagoObligacion;
   $('obPagoBanco').onchange=actualizarObPagoHint;
+  $('obTipo').onchange=actualizarObTipoCampos;
 
   // Metas
   $('btnNewMeta').onclick=nuevaMetaAhorro;
@@ -6126,6 +6541,55 @@ function comprobarCoherencia(){
       if(r2.entro>r2.corriente+r2.fijo && /^-/.test(texto('heroDelta').trim()))
         fallos.push(`El flujo sale en rojo habiendo entrado más de lo que se gastó`);
     }
+
+    /* 6. Cada tarjeta del tablero contra su propio desglose. Este es el fallo
+          que apareció cinco veces: la tarjeta sumaba una cosa y al tocarla el
+          detalle filtraba otra, llegando a decir Q2,790 arriba y Q0.00 abajo.
+          Mientras las dos sumas se comparen aquí, no puede volver a pasar. */
+    const tm=Engine.recalculate(mesActualSistema());
+    const porTarjeta={ingresos:tm.ingresos, gastos:tm.gastos, ahorros:tm.ahorros,
+                      gastosTC:tm.gastosTC, pagosTC:tm.tarjeta};
+    Object.keys(porTarjeta).forEach(k=>{
+      const M=METRICAS[k]; if(!M) return;
+      const detalle=Engine.txMes(mesActualSistema()).filter(M.f)
+        .reduce((a,x)=>a+num(x.monto)*(M.signo?M.signo(x):1),0);
+      if(!cerca(porTarjeta[k], detalle, 0.02))
+        fallos.push(`«${M.t}» muestra ${F(porTarjeta[k])} y su desglose suma ${F(detalle)}`);
+    });
+
+    /* 7. Los gastos fijos se miden con el mismo criterio en los dos sitios que
+          los usan. Cuando no era así, la gasolina pagada con tarjeta se
+          proyectaba como salida futura de efectivo y se restaba dos veces. */
+    if(r && !cerca(r.fijo, r.fijos.gastado, 0.02))
+      fallos.push(`Los fijos del ciclo (${F(r.fijo)}) no cuadran con su detalle (${F(r.fijos.gastado)})`);
+    if(r && (r.diasTotal<1 || r.transcurridos>r.diasTotal))
+      fallos.push(`El ciclo tiene ${r.diasTotal} día(s) y ${r.transcurridos} transcurrido(s)`);
+
+    /* 8. El último punto de la gráfica histórica tiene que ser el patrimonio de
+          hoy: si no, la gráfica y el número grande cuentan historias distintas. */
+    /* Se mide con una fecha posterior a todo el libro mayor: así el cálculo
+       histórico tiene que dar exactamente el patrimonio de hoy. Compararlo con
+       el último punto de la gráfica no serviría, porque ese punto ya usa el
+       motor directamente y la comprobación se estaría midiendo a sí misma. */
+    const futuro='2999-12-31';
+    if(!cerca(patrimonioEnFecha(futuro), Engine.patrimonioTotal(), 1))
+      fallos.push(`El cálculo histórico da ${F(patrimonioEnFecha(futuro))} y el patrimonio es ${F(Engine.patrimonioTotal())}`);
+
+    /* 9. Lo acumulado en cada plan, contra lo que dice el libro mayor. */
+    DB.metas.forEach(m=>{
+      if(!cerca(num(m.actual), Engine.enPlan(m.id), 0.02))
+        fallos.push(`El plan «${m.nombre}» dice ${F(m.actual)} y sus movimientos suman ${F(Engine.enPlan(m.id))}`);
+    });
+
+    /* 10. Movimientos que hoy no serían aceptados: cuentas o planes que ya no
+           existen, abonos sin tarjeta, tipos desconocidos. Aparecen al borrar
+           una cuenta o al restaurar un respaldo editado a mano, y son dinero
+           que figura en los totales del mes sin mover ningún saldo. */
+    const imposibles=DB.transacciones.filter(t=>revisarMovimiento(t,t.id));
+    if(imposibles.length)
+      fallos.push(`${imposibles.length} movimiento(s) ya registrados no cuadran hoy `+
+        `(el primero: ${esc(imposibles[0].descripcion||imposibles[0].tipo)} · `+
+        `${revisarMovimiento(imposibles[0],imposibles[0].id)})`);
   }catch(e){ fallos.push('La comprobación falló: '+e.message); }
 
   DB.config.ultimaComprobacion={cuando:new Date().toISOString(), fallos};
@@ -6142,18 +6606,25 @@ function actualizarResumenNativo(){
   const suma=a=>a.reduce((x,t)=>x+num(t.monto),0);
   const enRango=(a,b)=>DB.transacciones.filter(t=>t.tipo==='gasto'&&t.fecha>=a&&t.fecha<=b);
 
+  /* El ciclo de pago a pago es la única fuente del margen diario. Antes esta
+     función calculaba el suyo aparte (mes calendario, sin obligaciones), así
+     que la notificación del teléfono y la tarjeta de la app daban dos cifras
+     distintas del mismo concepto. Solo se cae al mes si no hay ciclo. */
+  const c=resumenCiclo();
   let diario=0;
   try{
-    const t=Engine.recalculate(mesActualSistema());
-    const dias=diasEnMes(mesActualSistema());
-    const restantes=Math.max(1,dias-new Date().getDate()+1);
-    diario=Math.max(0,(t.ingresos-t.gastos-t.tarjeta-t.ahorros)/restantes);
+    if(c) diario=Math.max(0,c.porDia);
+    else{
+      const t=Engine.recalculate(mesActualSistema());
+      const dias=diasEnMes(mesActualSistema());
+      const restantes=Math.max(1,dias-new Date().getDate()+1);
+      diario=Math.max(0,(t.ingresos-t.gastos-t.tarjeta-t.ahorros)/restantes);
+    }
   }catch(e){}
 
   /* El aviso de la noche no debe quedarse en "hoy gastaste X": lo que se quiere
      saber es en qué termina esto. Con el ciclo de pago a pago ya calculado, el
      lado nativo puede armar la frase "a este ritmo cierras con Q tanto". */
-  const c=resumenCiclo();
   const ciclo = c ? {
     cicloFin:c.fin, cicloDiasRestantes:c.diasRestantes, cicloTranscurridos:c.transcurridos,
     cicloLibre:c.sinGastarMas, cicloPorDia:c.porDia, cicloSalio:c.salio, cicloEntro:c.entro,
@@ -6166,6 +6637,11 @@ function actualizarResumenNativo(){
     N.guardarResumen(Object.assign({
       fecha:h,
       gastadoHoy:suma(gastosHoy),
+      /* El ritmo del ciclo no incluye la tarjeta ni los gastos fijos, así que
+         la proyección tiene que compararse contra lo mismo. Mandando el total
+         se regañaba por llenar el tanque o por una compra con tarjeta que
+         todavía no sale de la cuenta. */
+      corrienteHoy:gastoCorrienteDe(h),
       movsHoy:gastosHoy.length,
       diario:diario,
       gastadoSemana:suma(enRango(ini7,h)),
