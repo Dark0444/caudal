@@ -387,7 +387,22 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 .presets button{padding:11px 4px;border-radius:15px;background:var(--surface);border:1px solid var(--stroke);font-size:10.5px;font-weight:700;line-height:1.3}
 .presets button em{display:block;font-style:normal;font-size:21px;margin-bottom:3px}
 .presets button.on{border-color:var(--violet);background:var(--violet-soft)}
-.presets.scroll{max-height:206px;overflow-y:auto;overscroll-behavior:contain;padding:2px 2px 0;scrollbar-width:thin}
+/* Dos filas y media: la media fila de abajo es la que avisa de que hay más
+   iconos. Antes asomaban 17px de la cuarta fila, que no se ve entera ni se
+   entiende que se desliza: parecía que la rejilla estaba cortada. */
+.presets.scroll{
+  /* position:relative para que offsetTop de cada icono se mida contra la
+     rejilla. Sin esto se mide contra un ancestro cualquiera y el cálculo de
+     "trae el elegido a la vista" apunta a otro sitio. */
+  position:relative;
+  max-height:157px;overflow-y:auto;overscroll-behavior:contain;padding:2px 2px 0;
+  scrollbar-width:thin;
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)
+}
+/* Al llegar al final se quita el difuminado, para que el último icono no
+   quede medio borrado cuando ya no hay nada más abajo. */
+.presets.scroll.fin{-webkit-mask-image:none;mask-image:none}
 .icono-libre{margin-top:9px}
 .icono-libre input{font-size:13px;padding:10px 12px}
 
@@ -595,7 +610,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
         <div id="histPatLegend" style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text-2)"></div>
       </div>
 
-      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas (sin contar tarjeta de crédito) en cada uno de los últimos meses.">?</button></h2></div>
+      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas en cada uno de los últimos meses.&lt;br&gt;&lt;br&gt;La barra roja incluye los abonos que le hiciste a la tarjeta, porque ese dinero sí sale de tus cuentas. Lo que consumiste con la tarjeta y todavía no has pagado no está aquí: eso se mide aparte, en la deuda.">?</button></h2></div>
       <div class="card" id="ingVsGasCard">
         <svg id="ingVsGasSvg" viewBox="0 0 300 120" preserveAspectRatio="none" style="width:100%;height:120px;display:block" aria-hidden="true"></svg>
         <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-2)">
@@ -1934,11 +1949,28 @@ function renderBancoColorSwatches(sel){
 function renderIconPicker(cont,lista,sel){
   const c=$(cont);
   const todos = (sel && lista.indexOf(sel)<0) ? [sel].concat(lista) : lista;
-  /* Más de tres filas y la rejilla desfila el formulario entero hacia abajo:
-     a partir de ahí se queda a tres filas con la cuarta asomando, que es la
+  /* Más de dos filas y la rejilla desfila el formulario entero hacia abajo:
+     a partir de ahí se queda a dos filas y media, y esa media fila es la
      señal de que hay más para deslizar. */
-  c.classList.toggle('scroll', todos.length>12);
+  const desliza = todos.length>8;
+  c.classList.toggle('scroll', desliza);
   c.innerHTML=todos.map(i=>`<button type="button" data-i="${i}" class="${i===sel?'on':''}"><em>${i}</em></button>`).join('');
+  if(desliza){
+    /* El difuminado de abajo se quita al llegar al final: si no, el último
+       icono se queda medio borrado sin que haya nada más que ver. */
+    const marcarFin=()=>c.classList.toggle('fin', c.scrollTop+c.clientHeight >= c.scrollHeight-2);
+    c.onscroll=marcarFin; marcarFin();
+    /* Si lo elegido está más abajo, se trae a la vista: al editar, el icono
+       marcado podía quedar fuera de la parte visible de la rejilla.
+       Se mide con offsetTop, que va contra la propia rejilla (es position
+       relative). Medirlo contra la pantalla no sirve: cuando esto se ejecuta,
+       la hoja todavía no está colocada y las posiciones son otras. */
+    const elegido=c.querySelector('button.on');
+    if(elegido) c.scrollTop = Math.max(0, elegido.offsetTop - c.clientHeight/2 + elegido.offsetHeight/2);
+    marcarFin();
+  }else{
+    c.onscroll=null; c.classList.remove('fin');
+  }
 
   /* El campo va FUERA del <label>: dentro, tocar un botón de la rejilla
      enfocaría el input y abriría el teclado sin que nadie lo pidiera. */
@@ -2156,6 +2188,9 @@ function renderDashboard(){
                        tarjeta:rc.aTarjeta, ahorros:rc.aBoveda, retiros:0, neto:0} : t;
   const hs=Engine.healthScore(tSalud), arc=$('ringArc'), C=2*Math.PI*41;
   const periodo = rc ? 'en este ciclo' : 'este mes';
+  /* La ayuda del anillo se arma más abajo y tiene que usar estos mismos
+     números, no los del mes del calendario. */
+  window.__tSalud = tSalud; window.__periodoSalud = periodo;
   if(hs===null){
     arc.style.strokeDashoffset=C; $('hsNum').textContent='—';
     $('hsTitle').textContent='Salud financiera';
@@ -2177,10 +2212,19 @@ function renderDashboard(){
     'Es lo que realmente tienes: '+Engine.format(Engine.liquidoTotal())+' repartido en tus cuentas más '+
     Engine.format(Engine.enPlanes())+' guardado en planes de ahorro.<br><br>'+
     'La deuda de tarjeta de crédito no se resta aquí. La tarjeta es independiente: lo que consumes con ella descuenta de su propio límite, no de tu dinero disponible, y solo afecta tus cuentas el día que haces el pago.');
+  /* Los números de la ayuda son los MISMOS con los que se calculó el anillo.
+     Antes la ayuda enseñaba el mes del calendario mientras el puntaje salía
+     del ciclo de pago: tocabas el "?" y las cifras no daban el número que
+     tenías enfrente. */
+  const tsH = window.__tSalud || t, perH = window.__periodoSalud || 'este mes';
   setHint('hsHint','Salud financiera',
-    (hs===null?'Aún no hay datos de este mes.':'Vas en '+hs+' de 100.')+'<br><br>'+
-    'Se calcula comparando lo que gastaste desde tus cuentas y lo que pagaste de tarjeta contra tus ingresos del mes, y sube cuando apartas dinero en planes de ahorro. Las compras con tarjeta todavía sin pagar no bajan el puntaje: lo hará el pago cuando lo registres.<br><br>'+
-    'Este mes: ingresos '+Engine.format(t.ingresos)+' · salidas '+Engine.format(t.gastos+t.tarjeta)+' · ahorro '+Engine.format(t.ahorros)+'.');
+    (hs===null?'Aún no hay datos.':'Vas en '+hs+' de 100.')+'<br><br>'+
+    'Se calcula comparando lo que gastaste desde tus cuentas y lo que pagaste de tarjeta contra tus ingresos, y sube cuando apartas dinero. Las compras con tarjeta todavía sin pagar no bajan el puntaje: lo hará el pago cuando lo registres.<br><br>'+
+    (perH==='en este ciclo'
+      ? 'Se mide por ciclo de pago, no por mes: es el periodo con el que de verdad vives.<br><br>'
+      : '')+
+    'Ingresos '+Engine.format(tsH.ingresos)+' · salidas '+Engine.format(tsH.gastos+tsH.tarjeta)
+      +' · ahorro '+Engine.format(tsH.ahorros)+' ('+perH+').');
   const obPend=obligacionesDe(mesSel).reduce((a,o)=>a+Math.max(0,num(o.monto)-estadoObligacion(o,mesSel).pagado),0);
   setHint('obHint','Obligaciones fijas',
     'Recibos y suscripciones que se repiten cada mes. La barra muestra cuánto llevas pagado de cada una.<br><br>'+
@@ -2718,11 +2762,16 @@ function renderSpark(){
   let acc=0;
   for(let d=1;d<=dias;d++){
     const f=mesSel+'-'+String(d).padStart(2,'0');
+    /* Misma regla de signos que el resto de la app: entra lo que entra, sale
+       lo que sale de las cuentas, el consumo con tarjeta no toca el efectivo
+       y mover dinero entre cuentas propias no es ni lo uno ni lo otro.
+       Antes esta línea tenía su propia regla y podía contar una historia
+       distinta de la del neto que estaba justo al lado. */
     for(const t of DB.transacciones){
       if(t.fecha!==f) continue; const v=num(t.monto);
       if(t.tipo==='ingreso'||t.tipo==='retiro') acc+=v;
-      else if(Engine.esGastoTC(t)) continue;
-      else if(t.tipo!=='transfer') acc-=v;
+      else if(t.tipo==='gasto') { if(!Engine.esGastoTC(t)) acc-=v; }
+      else if(t.tipo==='tarjeta'||t.tipo==='ahorro') acc-=v;
     }
     pts.push(acc);
   }
@@ -3931,8 +3980,21 @@ function consejosReparto(t,x){
     const pct=lim>0?Math.round(deuda/lim*100):0;
     out.push(tip('💳','Debes '+Engine.format(deuda)+' de tarjeta'+(lim>0?' ('+pct+'% del límite)':'')+'. Con la opción A tardarías unos '+Math.ceil(deuda/Math.max(1,base*0.10))+' mes(es) en liquidarla; con la B, unos '+Math.ceil(deuda/Math.max(1,base*0.30))+'.'));
   }else out.push(tip('✅','No debes nada de tarjeta. Ese margen conviene que se vaya a tus planes de ahorro antes de que se convierta en gasto.'));
-  const falta=DB.metas.reduce((a,m)=>a+Math.max(0,num(m.objetivo)-num(m.actual)),0);
-  if(falta>0) out.push(tip('🎯','Te faltan '+Engine.format(falta)+' para completar todos tus planes. Con el 20% de este reparto ('+Engine.format(base*0.2)+' al mes) los terminarías en unos '+Math.ceil(falta/Math.max(1,base*0.2))+' mes(es).'));
+  const falta=DB.metas.reduce((a,m)=>a+Math.max(0,num(m.objetivo)-Engine.enPlan(m.id)),0);
+  if(falta>0){
+    /* El porcentaje de ahorro depende de la opción elegida: A guarda el 20%,
+       B con deuda baja al 10% y B sin deuda sube al 30%. Antes el consejo
+       daba siempre el 20% y, con la opción B elegida, el plazo era mentira. */
+    const sel0=(DB.config.reparto&&DB.config.reparto.mes===mesSel)?DB.config.reparto.opcion:null;
+    const pctAho = sel0==='deuda' ? 0.10 : sel0==='meta' ? 0.30 : 0.20;
+    const comoDice = sel0==='deuda' ? 'Con el 10% que deja la opción B'
+                   : sel0==='meta'  ? 'Con el 30% de la opción B'
+                   : 'Con el 20% de la opción A';
+    const porMes=base*pctAho;
+    out.push(tip('🎯','Te faltan '+Engine.format(falta)+' para completar todos tus planes. '
+      +comoDice+' ('+Engine.format(porMes)+' al mes) los terminarías en unos '
+      +Math.ceil(falta/Math.max(1,porMes))+' mes(es).'));
+  }
   const sel=(DB.config.reparto&&DB.config.reparto.mes===mesSel)?DB.config.reparto.opcion:null;
   if(!sel) out.push(tip('👆','Elige una de las dos opciones para que la app empiece a medir cuánto llevas cumplido del plan.'));
   else out.push(tip('📈','Estás siguiendo el plan elegido. Las barras de cada línea se mueven solas conforme registras pagos, abonos y gastos.'));
