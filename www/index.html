@@ -127,7 +127,12 @@ input,select,textarea{outline:none}
 /* Las cifras son el contenido principal de esta app: una sola familia,
    numeración tabular para que las columnas cuadren, y espaciado cerrado
    para que un número grande se lea como una cifra y no como un título. */
-.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;letter-spacing:-.025em}
+/* Las cifras van en monoespaciada. En un estado de cuenta los números se
+   comparan en columna, y para eso cada dígito tiene que ocupar lo mismo: así
+   dos renglones se comparan sin leerlos. Si la fuente no llegó al APK, cae a
+   la monoespaciada del sistema, que cumple lo mismo. */
+.num{font-family:"IBM Plex Mono",ui-monospace,"SF Mono","Roboto Mono",monospace;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;letter-spacing:-.03em}
 .hide{display:none !important}
 ::-webkit-scrollbar{width:0;height:0}
 
@@ -258,6 +263,15 @@ main{padding:4px 18px calc(var(--nav-h) + var(--safe-b) + 34px)}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:9px}
+/* En el tablero las cifras del mes van como una cuadrícula de datos, no como
+   tarjetas: las separa la línea, igual que en un estado de cuenta. */
+#view-tablero .metrics{grid-template-columns:1fr 1fr;gap:0;
+  border-top:1px solid var(--stroke)}
+#view-tablero .metric{background:none;border:0;border-radius:0;
+  border-bottom:1px solid var(--stroke);padding:11px 2px 10px}
+#view-tablero .metric:nth-child(odd){border-right:1px solid var(--stroke);padding-right:12px}
+#view-tablero .metric:nth-child(even){padding-left:13px}
+#view-tablero .metrics + .metrics{border-top:0;margin-top:0 !important}
 .metric{
   background:var(--pane);border:1px solid var(--stroke);border-radius:var(--r-ctl);
   padding:11px 12px 12px;cursor:pointer;
@@ -347,6 +361,101 @@ main{padding:4px 18px calc(var(--nav-h) + var(--safe-b) + 34px)}
 }
 .catchip:active{transform:scale(.93)}
 .catchip.on{background:var(--violet);border-color:transparent;color:#fff;font-weight:700}
+
+/* ==========================================================
+   EL TABLERO COMO INSTRUMENTO
+   Antes eran trece secciones apiladas en un scroll sin fin, todas con la
+   misma forma de tarjeta redondeada. Ahora la estructura la llevan las
+   líneas y la alineación, no cajas flotantes, y las trece secciones viven
+   detrás de un selector: una a la vez, cada una corta.
+   ========================================================== */
+#view-tablero .card{
+  background:none;border:0;border-radius:0;box-shadow:none;
+  padding:14px 0;margin:0;border-top:1px solid var(--stroke);
+}
+#view-tablero .card.tight{padding:12px 0}
+#view-tablero .sec-title{margin:18px 0 8px}
+#view-tablero .panel > .card:first-child,
+#view-tablero .panel > .sec-title:first-child{border-top:0;margin-top:4px}
+
+.accesos{display:flex;align-items:center;gap:9px;padding:4px 0 2px;font-size:12.5px}
+.accesos button{color:var(--violet);font-weight:600;padding:4px 0;
+  -webkit-tap-highlight-color:transparent}
+.accesos button:active{opacity:.6}
+.accesos span{color:var(--text-3)}
+
+/* ---------- La pista del ciclo ---------- */
+.pista{padding:12px 0 10px;border-bottom:1px solid var(--stroke)}
+.pista-top{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
+.pista-ini,.pista-fin{font-size:11px;color:var(--text-3);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.02em}
+.pista-mid{flex:1;text-align:center;font-size:11.5px;font-weight:700;color:var(--text-2)}
+.pista-dias{display:flex;align-items:flex-end;gap:2px;height:46px;
+  -webkit-tap-highlight-color:transparent}
+.pista-d{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;
+  align-items:center;gap:3px;height:100%;background:none;border:0;padding:0;cursor:pointer}
+.pista-d .barra{width:100%;border-radius:2px 2px 0 0;background:var(--text-3);
+  min-height:2px;transition:height .5s var(--spring),background .2s}
+.pista-d .n{font-size:8.5px;line-height:1;color:var(--text-3);
+  font-family:"IBM Plex Mono",ui-monospace,monospace}
+.pista-d.futuro .barra{background:var(--stroke)}
+.pista-d.oficina .n{color:var(--violet);font-weight:600}
+.pista-d.vence .barra{box-shadow:inset 0 2px 0 var(--gold)}
+.pista-d.hoy .barra{background:var(--teal)}
+.pista-d.hoy .n{color:var(--teal);font-weight:700}
+.pista-d.sel .barra{background:#fff}
+.pista-d.sel .n{color:#fff;font-weight:700}
+.pista-d:active{transform:translateY(1px)}
+.pista-pie{margin-top:8px;font-size:11px;color:var(--text-2);min-height:15px;line-height:1.4}
+.pista-pie em{font-style:normal;color:var(--text-3)}
+
+/* ---------- La cifra ---------- */
+.cifra{padding:13px 0 12px;border-bottom:1px solid var(--stroke)}
+.cifra .lbl{display:flex;align-items:center;font-size:11.5px;font-weight:600;
+  color:var(--text-2);margin-bottom:3px}
+.cifra .big{font-size:clamp(34px,10.5vw,46px);font-weight:500;line-height:1.02;
+  letter-spacing:-.045em;word-spacing:-.34em}
+.cifra .sub{display:flex;align-items:center;gap:9px;margin-top:7px;flex-wrap:wrap;
+  font-size:12px;color:var(--text-2)}
+
+/* ---------- Dónde está el dinero ---------- */
+.reparto{padding:2px 0 14px}
+.reparto-lbl{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:8px}
+.reparto-lbl span:last-child{color:var(--text-3);font-weight:500}
+.reparto-barra{display:flex;height:9px;border-radius:99px;overflow:hidden;gap:2px}
+.reparto-barra i{display:block;min-width:3px;transition:flex-grow .6s var(--spring)}
+.reparto-barra i.sellada{background:var(--text-3) !important;
+  background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.5) 0 2px,transparent 2px 5px) !important}
+.reparto-leyenda{display:flex;flex-wrap:wrap;gap:4px 13px;margin-top:9px;font-size:11px;
+  color:var(--text-2)}
+.reparto-leyenda span{display:inline-flex;align-items:center;gap:5px}
+.reparto-leyenda b{width:6px;height:6px;border-radius:2px;flex:none}
+.reparto-leyenda b.sellada{background:var(--text-3) !important}
+.reparto-leyenda u{text-decoration:none;color:var(--text);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.03em}
+
+/* ---------- Selector de paneles ---------- */
+.segs{display:flex;overflow-x:auto;scrollbar-width:none;
+  padding:14px 0 2px;border-bottom:1px solid var(--stroke);margin-bottom:2px;
+  scroll-snap-type:x proximity}
+.segs::-webkit-scrollbar{display:none}
+.cdtab{flex:none;scroll-snap-align:start;background:none;border:0;
+  padding:7px 2px;margin-right:14px;font-size:13.5px;font-weight:600;color:var(--text-3);
+  position:relative;white-space:nowrap;-webkit-tap-highlight-color:transparent;
+  transition:color .2s}
+.cdtab::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;
+  border-radius:2px;background:var(--violet);transform:scaleX(0);
+  transition:transform .26s var(--spring)}
+.cdtab.on{color:var(--text)}
+.cdtab.on::after{transform:scaleX(1)}
+.panel{display:none}
+.panel.on{display:block;animation:panelEntra .34s var(--spring) both}
+@keyframes panelEntra{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .panel.on{animation:none}
+  .pista-d .barra,.reparto-barra i,.cdtab::after{transition:none}
+}
 
 /* ---------- Movimientos ---------- */
 .tx{
@@ -641,23 +750,53 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
 
   <main>
     <div id="banner" class="hide" aria-live="assertive"></div>
-    <div style="display:flex;gap:8px;margin:2px 0 10px">
-      <button class="chip" id="btnResumen" style="flex:1;text-align:center;padding:11px 8px">📊 Resumen general</button>
-      <button class="chip" id="btnReporte" style="flex:1;text-align:center;padding:11px 8px">🗂️ Reportes</button>
+    <!-- Dos accesos, no dos botones: ocupaban 40px de alto encima de todo y
+         son navegación secundaria, no una acción del tablero. -->
+    <div class="accesos">
+      <button type="button" id="btnResumen">Resumen general</button>
+      <span>·</span>
+      <button type="button" id="btnReporte">Reportes</button>
     </div>
     <button class="chip hide" id="chipPendientes" style="width:100%;text-align:center;padding:11px 8px;margin-bottom:10px;border-color:var(--gold);color:var(--gold)"></button>
 
     <!-- ================= TABLERO ================= -->
     <section class="view on" id="view-tablero">
-      <div class="hero">
+
+      <!-- ===== LA PISTA: la espina del tablero =====
+           El dinero de Josué se mueve en ciclos de quincena, no en meses, así
+           que la pantalla se organiza sobre el ciclo y no sobre un calendario.
+           Cada barra es lo que gastó ese día; lunes y viernes van marcados
+           porque son los días que va a la oficina y gasta más. -->
+      <div class="pista" id="pista">
+        <div class="pista-top">
+          <span class="pista-ini" id="pistaIni">—</span>
+          <span class="pista-mid" id="pistaMid">Ciclo</span>
+          <span class="pista-fin" id="pistaFin">—</span>
+        </div>
+        <div class="pista-dias" id="pistaDias"></div>
+        <div class="pista-pie" id="pistaPie"></div>
+      </div>
+
+      <!-- ===== LA CIFRA: la respuesta a "¿puedo gastar?" ===== -->
+      <div class="cifra">
         <div class="lbl"><span id="heroLbl">Patrimonio total</span><button class="hint" id="patHint" data-hint-title="Lo que ves aquí" data-hint="Cuando tienes una cuenta marcada como bóveda, el número grande es tu dinero disponible: el de las cuentas de uso diario, sin la bóveda. Ese es el que sirve para decidir si puedes gastar algo. El patrimonio total, que sí la incluye, aparece debajo en pequeño y lo revelas con un toque.">?</button></div>
         <div class="big num" id="patrimonio">Q0.00</div>
         <div class="sub"><span id="heroDelta" class="delta up">—</span><span id="heroNote"></span></div>
         <button type="button" id="heroPatrimonio" class="muted hide"
           style="font-size:11.5px;margin-top:7px;text-align:left;display:block"></button>
-        <svg id="spark" viewBox="0 0 300 52" preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
 
+      <!-- ===== PANELES: las trece secciones de antes, una a la vez ===== -->
+      <div class="segs" id="segs" role="tablist">
+        <button class="cdtab on" type="button" data-p="ciclo"   role="tab">Ciclo</button>
+        <button class="cdtab"    type="button" data-p="cuentas" role="tab">Cuentas</button>
+        <button class="cdtab"    type="button" data-p="tarjeta" role="tab">Tarjeta</button>
+        <button class="cdtab"    type="button" data-p="mes"     role="tab">Mes</button>
+        <button class="cdtab"    type="button" data-p="planes"  role="tab">Planes</button>
+        <button class="cdtab"    type="button" data-p="salud"   role="tab">Salud</button>
+      </div>
+
+      <div class="panel on" data-p="ciclo">
       <div class="card hide" id="cicloCard" style="margin-top:12px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span style="font-size:16px">🗓️</span>
@@ -682,7 +821,6 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           <button class="btn hide" type="button" id="btnCicloApartar" style="margin-top:0;padding:10px;font-size:12.5px">🔒 Apartar</button>
         </div>
       </div>
-
       <div class="card tight hide" id="proyCard" style="display:flex;gap:11px;align-items:flex-start;margin-top:-4px">
         <div style="font-size:19px">🔮</div>
         <div style="flex:1;min-width:0">
@@ -690,11 +828,28 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           <div class="muted" id="proyTxt" style="margin-top:2px;font-size:12px"></div>
         </div>
       </div>
+      <div class="sec-title"><h2>Obligaciones del mes<button class="hint" id="obHint" data-hint-title="Obligaciones fijas" data-hint="Recibos y suscripciones del mes.">?</button></h2><button id="btnNewOb">Agregar</button></div>
+      <div class="card tight" id="obligCard"></div>
+      </div>
 
-
+      <div class="panel" data-p="cuentas">
+        <!-- Una sola barra apilada: de un vistazo se ve la proporción entre
+             cuentas, que es la pregunta real cuando uno abre "Cuentas". -->
+        <div class="reparto" id="repartoBtn">
+          <div class="reparto-lbl"><span>Reparto</span><span id="repartoTot"></span></div>
+          <div class="reparto-barra" id="repartoBarra"></div>
+          <div class="reparto-leyenda" id="repartoLeyenda"></div>
+        </div>
       <div class="sec-title"><h2>Mis cuentas</h2><button id="btnTransfer">Transferir</button></div>
       <div class="banks" id="banksRow"></div>
+      </div>
 
+      <div class="panel" data-p="tarjeta">
+        <div class="sec-title"><h2>Tarjeta de crédito</h2><button id="btnLimite">Límite</button></div>
+        <div id="tcCard"></div>
+      </div>
+
+      <div class="panel" data-p="mes">
       <div class="sec-title"><h2>Este mes</h2></div>
       <div class="metrics" id="mGrid1">
         <div class="metric" data-m="ingresos"><div class="k">↓ Ingresos<i class="qm">?</i></div><div class="v pos num" id="mIng">Q0</div></div>
@@ -707,7 +862,38 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
         <div class="metric" data-m="pagosTC"><div class="k">✔️ Pagos TC<i class="qm">?</i></div><div class="v num" id="mTar">Q0</div></div>
       </div>
       <div class="muted" style="margin-top:8px;font-size:11px;text-align:center">Toca cualquier tarjeta para ver qué la compone</div>
+        <div class="sec-title"><h2>Flujo del mes</h2></div>
+        <div class="card tight" id="sparkCard">
+        <svg id="spark" viewBox="0 0 300 52" preserveAspectRatio="none" aria-hidden="true"></svg>
+        </div>
+      <div class="sec-title"><h2>Gastos por categoría<button class="hint" data-hint-title="Gastos por categoría" data-hint="Solo tu dinero: lo que salió de tus cuentas. El consumo con tarjeta de crédito no aparece aquí porque ese dinero es del banco, no tuyo; lo ves completo en la sección Tarjeta de crédito.">?</button></h2></div>
+      <div class="card" id="donutCard">
+        <div class="donut-wrap">
+          <div class="donut">
+            <svg width="118" height="118" viewBox="0 0 118 118" id="donutSvg" style="transform:rotate(-90deg)"></svg>
+            <div class="mid"><div><i>Sin tarjeta</i><b class="num" id="donutTotal">Q0</b></div></div>
+          </div>
+          <div class="legend" id="donutLegend"></div>
+        </div>
+      </div>
+      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas en cada uno de los últimos meses.&lt;br&gt;&lt;br&gt;La barra roja incluye los abonos que le hiciste a la tarjeta, porque ese dinero sí sale de tus cuentas. Lo que consumiste con la tarjeta y todavía no has pagado no está aquí: eso se mide aparte, en la deuda.">?</button></h2></div>
+      <div class="card" id="ingVsGasCard">
+        <svg id="ingVsGasSvg" viewBox="0 0 300 120" preserveAspectRatio="none" style="width:100%;height:120px;display:block" aria-hidden="true"></svg>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-2)">
+          <span><i class="swatch-dot" style="background:var(--teal)"></i>Ingresos</span>
+          <span><i class="swatch-dot" style="background:var(--coral)"></i>Salidas</span>
+        </div>
+      </div>
+      </div>
 
+      <div class="panel" data-p="planes">
+      <div class="sec-title"><h2>Planes de ahorro<button class="hint" id="metaHint" data-hint-title="Planes de ahorro" data-hint="Dinero que apartas para una meta.">?</button></h2><button id="btnNewMeta2">Nuevo plan</button></div>
+      <div id="metasDash"></div>
+      <div class="sec-title"><h2>Repetir gasto</h2></div>
+      <div class="chips" id="quickChips"></div>
+      </div>
+
+      <div class="panel" data-p="salud">
       <div class="card" style="margin-top:14px">
         <div class="health">
           <div class="ring">
@@ -726,44 +912,12 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           </div>
         </div>
       </div>
-
       <div class="sec-title"><h2>Tendencia de patrimonio<button class="hint" id="histPatHint" data-hint-title="Tendencia de patrimonio" data-hint="El patrimonio de cada mes recalculado con el historial real de movimientos hasta el último día de ese mes (el mes en curso se corta en el día de hoy).">?</button></h2></div>
       <div class="card" id="histPatCard">
         <svg id="histPatSvg" viewBox="0 0 300 90" preserveAspectRatio="none" style="width:100%;height:90px;display:block" aria-hidden="true"></svg>
         <div id="histPatLegend" style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text-2)"></div>
       </div>
-
-      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas en cada uno de los últimos meses.&lt;br&gt;&lt;br&gt;La barra roja incluye los abonos que le hiciste a la tarjeta, porque ese dinero sí sale de tus cuentas. Lo que consumiste con la tarjeta y todavía no has pagado no está aquí: eso se mide aparte, en la deuda.">?</button></h2></div>
-      <div class="card" id="ingVsGasCard">
-        <svg id="ingVsGasSvg" viewBox="0 0 300 120" preserveAspectRatio="none" style="width:100%;height:120px;display:block" aria-hidden="true"></svg>
-        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-2)">
-          <span><i class="swatch-dot" style="background:var(--teal)"></i>Ingresos</span>
-          <span><i class="swatch-dot" style="background:var(--coral)"></i>Salidas</span>
-        </div>
       </div>
-
-      <div class="sec-title"><h2>Gastos por categoría<button class="hint" data-hint-title="Gastos por categoría" data-hint="Solo tu dinero: lo que salió de tus cuentas. El consumo con tarjeta de crédito no aparece aquí porque ese dinero es del banco, no tuyo; lo ves completo en la sección Tarjeta de crédito.">?</button></h2></div>
-      <div class="card" id="donutCard">
-        <div class="donut-wrap">
-          <div class="donut">
-            <svg width="118" height="118" viewBox="0 0 118 118" id="donutSvg" style="transform:rotate(-90deg)"></svg>
-            <div class="mid"><div><i>Sin tarjeta</i><b class="num" id="donutTotal">Q0</b></div></div>
-          </div>
-          <div class="legend" id="donutLegend"></div>
-        </div>
-      </div>
-
-      <div class="sec-title"><h2>Repetir gasto</h2></div>
-      <div class="chips" id="quickChips"></div>
-
-      <div class="sec-title"><h2>Planes de ahorro<button class="hint" id="metaHint" data-hint-title="Planes de ahorro" data-hint="Dinero que apartas para una meta.">?</button></h2><button id="btnNewMeta2">Nuevo plan</button></div>
-      <div id="metasDash"></div>
-
-      <div class="sec-title"><h2>Obligaciones del mes<button class="hint" id="obHint" data-hint-title="Obligaciones fijas" data-hint="Recibos y suscripciones del mes.">?</button></h2><button id="btnNewOb">Agregar</button></div>
-      <div class="card tight" id="obligCard"></div>
-
-      <div class="sec-title"><h2>Tarjeta de crédito</h2><button id="btnLimite">Límite</button></div>
-      <div id="tcCard"></div>
     </section>
 
     <!-- ================= REGISTROS ================= -->
@@ -1391,7 +1545,9 @@ const SIMBOLO='Q ';   // espacio fino que no parte la cifra en dos líneas
 const fmtNum = (dec)=>{
   const f=new Intl.NumberFormat('es-GT',
     dec ? {minimumFractionDigits:2, maximumFractionDigits:2} : {maximumFractionDigits:0});
-  return n=>{ const v=num(n); return (v<0?'-':'')+SIMBOLO+f.format(Math.abs(v)); };
+  /* Signo menos de verdad (U+2212), no el guion: a 46px el guion se lee como
+     un resto tipográfico y además queda a distinta altura que las cifras. */
+  return n=>{ const v=num(n); return (v<0?'\u2212':'')+SIMBOLO+f.format(Math.abs(v)); };
 };
 const CUR  = {format: fmtNum(true)};
 const CUR0 = {format: fmtNum(false)};
@@ -2368,6 +2524,7 @@ function renderDashboard(){
 
   renderSpark(); updateChart(); renderQuickChips(); renderObligacionesEstado(mesSel); renderTCCard();
   renderPatrimonioHist(); renderIngresosGastos(); renderProyeccionMes(); renderCiclo();
+  renderPista(); renderDondeEsta();
 }
 /* ---------- Patrimonio recalculado a una fecha pasada (para la tendencia histórica) ----------
    Usa el MISMO motor que el número grande del tablero, mirando solo los
@@ -2942,6 +3099,131 @@ function renderProyeccionMes(){
     (proyectadoNeto>=0?'a favor de ':'en contra de ')+
     '<b style="color:'+(proyectadoNeto>=0?'var(--teal)':'var(--coral)')+'">'+Engine.format(Math.abs(proyectadoNeto))+'</b>.';
 }
+/* ---------- La pista del ciclo ----------
+   La espina del tablero. Cada barra es lo que salió de las cuentas ese día
+   (el consumo con tarjeta no, porque ese día no sale dinero). Los días de
+   oficina van marcados porque son los caros, y los días en que vence algo
+   llevan una marca dorada por encima. Se puede tocar un día para ver qué
+   pasó: eso es lo que convierte la gráfica en algo que se usa, no que se
+   mira. */
+let pistaSel = null;
+function renderPista(){
+  const cont=$('pistaDias'); if(!cont) return;
+  const c=(mesSel===mesActualSistema()) ? cicloActual() : null;
+  const caja=$('pista');
+  if(!c){ if(caja) caja.classList.add('hide'); return; }
+  if(caja) caja.classList.remove('hide');
+  const h=hoy();
+
+  /* Qué vence dentro del ciclo, por día */
+  const vence={};
+  DB.obligaciones.forEach(ob=>{
+    const cand = ob.repite===false ? [ob.fecha||'']
+               : [fechaVencimiento(ob,mesDe(c.ini)), fechaVencimiento(ob,mesDe(c.fin))];
+    cand.filter(Boolean).forEach(f=>{
+      if(f<c.ini||f>c.fin) return;
+      const est=estadoObligacion(ob, mesDe(f));
+      if(est.estado==='pagada') return;
+      (vence[f]=vence[f]||[]).push(ob.nombre);
+    });
+  });
+
+  const dias=[];
+  for(let f=c.ini; f<=c.fin; f=fechaMas(f,1)){
+    let gasto=0, movs=0;
+    for(const t of DB.transacciones){
+      if(t.fecha!==f) continue;
+      movs++;
+      if(t.tipo==='gasto' && !Engine.esGastoTC(t)) gasto+=num(t.monto);
+    }
+    dias.push({f, gasto, movs, futuro:f>h, hoy:f===h,
+               oficina:esDiaOficina(f), vence:vence[f]||null});
+    if(dias.length>62) break;                 // cinturón: nunca un bucle infinito
+  }
+  const tope=Math.max(1,...dias.map(d=>d.gasto));
+
+  $('pistaIni').textContent=fechaCorta(c.ini);
+  $('pistaFin').textContent=fechaCorta(c.fin);
+  $('pistaMid').textContent = c.diasRestantes>0
+    ? (c.diasRestantes===1?'falta 1 día':'faltan '+c.diasRestantes+' días')
+    : 'último día';
+
+  cont.innerHTML=dias.map(d=>{
+    const alto=d.gasto>0 ? Math.max(8, Math.round(d.gasto/tope*100)) : 2;
+    const cl=['pista-d'];
+    if(d.futuro) cl.push('futuro');
+    if(d.hoy) cl.push('hoy');
+    if(d.oficina) cl.push('oficina');
+    if(d.vence) cl.push('vence');
+    if(pistaSel===d.f) cl.push('sel');
+    return `<button type="button" class="${cl.join(' ')}" data-dia="${d.f}"
+      aria-label="${esc(fechaLarga(d.f))}">
+      <span class="barra" style="height:${alto}%"></span>
+      <span class="n">${Number(d.f.slice(8))}</span>
+    </button>`;
+  }).join('');
+
+  pintarPiePista(dias);
+}
+function pintarPiePista(dias){
+  const pie=$('pistaPie'); if(!pie) return;
+  const d = dias.find(x=>x.f===pistaSel) || dias.find(x=>x.hoy) || dias[dias.length-1];
+  if(!d){ pie.textContent=''; return; }
+  const partes=[`<b>${esc(fechaLarga(d.f))}</b>`];
+  if(d.futuro){
+    partes.push('<em>aún no pasa</em>');
+  } else {
+    partes.push(d.gasto>0 ? 'gastaste <span class="num">'+Engine.format(d.gasto)+'</span>'
+                          : '<em>no gastaste nada</em>');
+    if(d.movs) partes.push('<em>'+d.movs+(d.movs===1?' movimiento':' movimientos')+'</em>');
+  }
+  if(d.oficina) partes.push('<em>día de oficina</em>');
+  if(d.vence) partes.push('<span style="color:var(--gold)">vence '+esc(d.vence.join(', '))+'</span>');
+  pie.innerHTML=partes.join(' · ');
+}
+function fechaCorta(f){
+  const d=new Date(f+'T12:00:00');
+  return isNaN(d)?f:d.toLocaleDateString('es-GT',{day:'numeric',month:'short'});
+}
+
+/* ---------- Dónde está el dinero ----------
+   Una sola barra apilada en vez de tarjetas: de un vistazo se ve la
+   proporción entre cuentas, que es la pregunta real. La bóveda sale rayada
+   y sin monto, porque el punto de la bóveda es no ver cuánto hay. */
+function renderDondeEsta(){
+  const barra=$('repartoBarra'); if(!barra) return;
+  const cuentas=DB.bancos.filter(b=>b.tipo!=='credito')
+    .map(b=>({b, v:Math.max(0,Engine.bancoValor(b)), bov:Engine.esBoveda(b)}));
+  const total=cuentas.reduce((a,x)=>a+x.v,0);
+  $('repartoTot').textContent = Engine.hayBoveda()
+    ? 'a la mano: '+Engine.format(Engine.disponibleTotal())
+    : Engine.format(total);
+  if(!total){ barra.innerHTML='<i style="flex:1;background:var(--stroke)"></i>';
+              $('repartoLeyenda').innerHTML=''; return; }
+  barra.innerHTML=cuentas.map(x=>
+    `<i class="${x.bov?'sellada':''}" style="flex:${Math.max(x.v/total,0.03)};background:${x.b.color}"></i>`
+  ).join('');
+  $('repartoLeyenda').innerHTML=cuentas.map(x=>
+    `<span><b class="${x.bov?'sellada':''}" style="background:${x.b.color}"></b>${esc(x.b.nombre)} <u>${
+      x.bov&&!bovedaVisible ? '•••' : Engine.format(x.v)}</u></span>`
+  ).join('');
+}
+
+/* ---------- Paneles ----------
+   Las trece secciones de antes siguen todas aquí; lo que cambia es que se ve
+   una a la vez en vez de un scroll sin fin. */
+function abrirPanel(nombre){
+  const segs=[...document.querySelectorAll('#segs .cdtab')];
+  const paneles=[...document.querySelectorAll('#view-tablero .panel')];
+  if(!segs.length) return;
+  if(!segs.some(s=>s.dataset.p===nombre)) nombre=segs[0].dataset.p;
+  segs.forEach(s=>s.classList.toggle('on', s.dataset.p===nombre));
+  paneles.forEach(p=>p.classList.toggle('on', p.dataset.p===nombre));
+  DB.config.panelTablero=nombre;
+  const act=segs.find(s=>s.dataset.p===nombre);
+  if(act&&act.scrollIntoView) act.scrollIntoView({block:'nearest',inline:'nearest'});
+}
+
 function renderSpark(){
   const svg=$('spark'), dias=diasEnMes(mesSel), pts=[];
   let acc=0;
@@ -5543,6 +5825,7 @@ function renderAll(){
   actualizarSelectorMeses();
   renderBancos();
   renderDashboard();
+  abrirPanel(DB.config.panelTablero||'ciclo');   // deja abierto el panel donde se quedó
   buildFilters(); renderBankFilters(); renderHistory(); renderComparativa(); renderHistorialMeses(); renderHeatmap();
   renderPresupuesto(); renderMetas();
   poblarSelectsBanco(); updateBell();
@@ -5619,6 +5902,19 @@ function wire(){
   };
   $('txFotoQuitar').onclick=()=>{ txFotoData=null; $('txFoto').value=''; mostrarFotoPreview(); };
   $('txList').onclick=e=>{ const r=e.target.closest('[data-tx]'); if(r) editarTx(r.dataset.tx); };
+
+  /* La pista: tocar un día lo selecciona y cuenta qué pasó; volver a tocarlo
+     lo suelta y el pie vuelve a hablar de hoy. */
+  $('pistaDias').onclick=e=>{
+    const d=e.target.closest('[data-dia]'); if(!d) return;
+    pistaSel = (pistaSel===d.dataset.dia) ? null : d.dataset.dia;
+    renderPista(); hap(8);
+  };
+  $('segs').onclick=e=>{
+    const s=e.target.closest('.cdtab'); if(!s) return;
+    abrirPanel(s.dataset.p); saveDB(); hap(8);
+  };
+
 
   // Registro rápido
   $('numpad').onclick=e=>{ const b=e.target.closest('[data-k]'); if(b) qNumTap(b.dataset.k); };
@@ -6716,7 +7012,12 @@ function comprobarCoherencia(){
        lo que te entró" a quien había gastado el 25%, y ninguna identidad
        interna lo notaba porque el error estaba en la fórmula misma. */
     const texto=id=>{ const e=$(id); return e?e.textContent:''; };
-    const cifra=t=>{ const m=String(t).replace(/[^0-9.,-]/g,'').replace(/,/g,''); const v=parseFloat(m); return isFinite(v)?v:null; };
+    /* Acepta el signo menos tipográfico (U+2212), que es el que la app imprime,
+       además del guion. Sin esto, un negativo en pantalla se leía como
+       positivo y esta comprobación —que existe justo para cazar fórmulas
+       malas— se quedaba ciega ante ellas. */
+    const cifra=t=>{ const m=String(t).replace(/−/g,'-').replace(/[^0-9.,-]/g,'').replace(/,/g,'');
+                     const v=parseFloat(m); return isFinite(v)?v:null; };
     const r2=resumenCiclo();
 
     if(r2 && r2.entro>0){
