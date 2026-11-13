@@ -27,9 +27,6 @@ copiar('xlsx/dist/xlsx.full.min.js', 'xlsx.full.min.js');
 /* ---- Fuentes ---- */
 const fuentes = [
   { paq: '@fontsource/manrope', familia: 'Manrope', pesos: [400, 500, 600, 700, 800] },
-  /* Las cifras van en monoespaciada: en un estado de cuenta los números se
-     comparan en columna, y para eso tienen que ocupar todos lo mismo. */
-  { paq: '@fontsource/ibm-plex-mono', familia: 'IBM Plex Mono', pesos: [400, 500, 600] },
   { paq: '@fontsource/space-grotesk', familia: 'Space Grotesk', pesos: [400, 500, 600, 700] }
 ];
 

@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Caudal">
+<meta name="apple-mobile-web-app-title" content="Nébula">
 <meta name="description" content="Control total de tus finanzas personales: cuentas, presupuestos, tarjeta de crédito, metas y respaldo automático.">
 <title>Caudal</title>
 <link rel="manifest" href="manifest.json">
@@ -20,57 +20,26 @@
 <script src="native-bridge.js"></script>
 <style>
 /* ============================================================
-   CAUDAL — sistema de diseño
-
-   Caudal no es un tablero de analítica: es un instrumento de
-   disciplina. Su trabajo es contestar "¿puedo gastar esto?" y
-   hacer visible el ahorro. Tres ideas sostienen el diseño:
-
-   1. El CICLO manda, no el mes. A Josué le pagan el 15 y el 28.
-   2. La BÓVEDA es dinero escondido de uno mismo a propósito, así
-      que se ve distinta a todo lo demás: es lo único que se
-      comporta distinto.
-   3. Los DÍAS tienen carácter. Lunes y viernes son de oficina
-      (70 km) y cuestan diez veces más que los demás.
-
-   Jerarquía de superficies: no todo es una tarjeta. El héroe es
-   el suelo, las tarjetas son objetos encima, y la bóveda es un
-   objeto sellado. Radios y bordes distintos según lo que sea.
+   NÉBULA — sistema de diseño
    ============================================================ */
 :root{
-  /* Base */
-  --ink:#0A0D1F;
-  --ink-2:#111634;
-  --ink-3:#161C40;
-
-  /* Superficies, de menor a mayor presencia */
-  --pane:rgba(255,255,255,.04);
+  --ink:#0B0E23;
+  --ink-2:#121735;
   --surface:rgba(255,255,255,.055);
   --surface-2:rgba(255,255,255,.09);
-  --sealed:rgba(255,255,255,.028);
-  --stroke:rgba(255,255,255,.085);
-  --stroke-2:rgba(255,255,255,.16);
-
-  /* Texto */
+  --stroke:rgba(255,255,255,.10);
+  --stroke-2:rgba(255,255,255,.18);
   --text:#ECEBFF;
-  --text-2:#9B9FC6;
-  --text-3:#676B93;
-
-  /* Color con significado. Cada uno dice una cosa y solo una. */
-  --violet:#8B6CFF;        /* lo tocable, la marca */
-  --violet-soft:rgba(139,108,255,.14);
-  --teal:#2DD4BF;          /* dinero que se queda */
-  --coral:#FF6B81;         /* dinero que se fue, o de más */
-  --gold:#FFC46B;          /* dinero con dueño, aún no sale */
-  --sky:#5FC5FF;           /* informativo */
-
-  --shadow:0 18px 40px -22px rgba(0,0,0,.8);
-  --shadow-sm:0 6px 18px -10px rgba(0,0,0,.6);
-
-  /* Radios con intención: el tamaño dice qué tan "objeto" es algo */
-  --r-hero:28px; --r-card:16px; --r-ctl:12px; --r-pill:999px;
-  --r-lg:26px; --r-md:18px; --r-sm:12px;   /* compatibilidad */
-
+  --text-2:#9FA3C9;
+  --text-3:#6B6F98;
+  --violet:#8B6CFF;
+  --violet-soft:rgba(139,108,255,.16);
+  --teal:#2DD4BF;
+  --coral:#FF6B81;
+  --gold:#FFC46B;
+  --sky:#5FC5FF;
+  --shadow:0 18px 40px -18px rgba(0,0,0,.75);
+  --r-lg:26px; --r-md:18px; --r-sm:12px;
   --nav-h:76px;
   --safe-b:env(safe-area-inset-bottom,0px);
   --safe-t:env(safe-area-inset-top,0px);
@@ -78,73 +47,67 @@
   --ease:cubic-bezier(.22,.7,.3,1);
 }
 :root[data-theme="light"]{
-  --ink:#F4F3F9;
+  --ink:#F1F0F7;
   --ink-2:#FFFFFF;
-  --ink-3:#FFFFFF;
-  --pane:rgba(16,18,44,.035);
   --surface:rgba(16,18,44,.045);
   --surface-2:rgba(16,18,44,.075);
-  --sealed:rgba(16,18,44,.025);
-  --stroke:rgba(16,18,44,.095);
-  --stroke-2:rgba(16,18,44,.17);
+  --stroke:rgba(16,18,44,.10);
+  --stroke-2:rgba(16,18,44,.18);
   --text:#161A38;
-  --text-2:#585D83;
-  --text-3:#898EAF;
+  --text-2:#5A5F85;
+  --text-3:#8A8FB0;
   --violet:#6B48F5;
-  --violet-soft:rgba(107,72,245,.10);
+  --violet-soft:rgba(107,72,245,.12);
   --teal:#0E9E8B;
   --coral:#E23E5C;
-  --gold:#B87C0A;
+  --gold:#C78A17;
   --sky:#1D8FD1;
-  --shadow:0 14px 34px -20px rgba(22,26,56,.35);
-  --shadow-sm:0 5px 14px -8px rgba(22,26,56,.25);
+  --shadow:0 14px 34px -18px rgba(22,26,56,.38);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%}
 body{
   background:var(--ink); color:var(--text);
   font-family:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  font-size:15px; line-height:1.45; letter-spacing:-.011em;
+  font-size:15px; line-height:1.45; letter-spacing:-.01em;
   overscroll-behavior-y:none; -webkit-font-smoothing:antialiased;
 }
-/* Una sola profundidad, de arriba hacia abajo. Antes eran tres manchas
-   radiales de colores: decoración que no decía nada y competía con los
-   colores que sí significan algo. */
 body::before{
   content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
   background:
-    linear-gradient(180deg,rgba(139,108,255,.13),transparent 46%),
-    radial-gradient(130% 45% at 50% 0%, rgba(45,212,191,.05), transparent 70%);
+    radial-gradient(90% 60% at 12% -8%, rgba(139,108,255,.30), transparent 62%),
+    radial-gradient(70% 50% at 96% 4%, rgba(45,212,191,.16), transparent 60%),
+    radial-gradient(80% 60% at 50% 108%, rgba(255,107,129,.14), transparent 60%);
 }
 :root[data-theme="light"] body::before{
-  background:linear-gradient(180deg,rgba(107,72,245,.07),transparent 42%);
+  background:
+    radial-gradient(90% 60% at 12% -8%, rgba(107,72,245,.18), transparent 62%),
+    radial-gradient(70% 50% at 96% 4%, rgba(14,158,139,.12), transparent 60%),
+    radial-gradient(80% 60% at 50% 108%, rgba(226,62,92,.10), transparent 60%);
 }
 button,input,select,textarea{font:inherit;color:inherit}
 button{background:none;border:0;cursor:pointer}
 input,select,textarea{outline:none}
 :focus-visible{outline:2px solid var(--violet);outline-offset:2px;border-radius:8px}
-
-/* Las cifras son el contenido principal de esta app: una sola familia,
-   numeración tabular para que las columnas cuadren, y espaciado cerrado
-   para que un número grande se lea como una cifra y no como un título. */
-/* Las cifras van en monoespaciada. En un estado de cuenta los números se
-   comparan en columna, y para eso cada dígito tiene que ocupar lo mismo: así
-   dos renglones se comparan sin leerlos. Si la fuente no llegó al APK, cae a
-   la monoespaciada del sistema, que cumple lo mismo. */
-.num{font-family:"IBM Plex Mono",ui-monospace,"SF Mono","Roboto Mono",monospace;
-  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;letter-spacing:-.03em}
+.num{font-family:"Space Grotesk","Manrope",system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .hide{display:none !important}
 ::-webkit-scrollbar{width:0;height:0}
 
-/* ---------- Armazón ---------- */
+/* ---------- App shell ---------- */
 #app{max-width:520px;margin:0 auto;min-height:100%;position:relative}
 header.topbar{
   position:sticky; top:0; z-index:40;
   padding:calc(var(--safe-t) + 14px) 18px 10px;
+  /* Fondo sólido hasta abajo del todo. Antes el degradado se volvía
+     transparente a mitad de la barra, justo donde están las pastillas de mes,
+     y el contenido de la página se veía a través: "oct 26" quedaba encima de
+     "Mis cuentas" o de "Tendencia de patrimonio" al desplazar. */
   background:var(--ink);
 }
+/* El difuminado va DEBAJO de la barra, no dentro: así el contenido se
+   desvanece al pasar por detrás en vez de atravesarla. */
 header.topbar::after{
-  content:'';position:absolute;left:0;right:0;top:100%;height:20px;
+  content:'';position:absolute;left:0;right:0;top:100%;height:18px;
   background:linear-gradient(to bottom,var(--ink),transparent);
   pointer-events:none;
 }
@@ -153,334 +116,164 @@ header.topbar::after{
 .greet b{display:block;font-size:17px;font-weight:800;letter-spacing:-.03em}
 .greet span{display:block;font-size:12px;color:var(--text-2);margin-top:1px}
 .icon-btn{
-  width:40px;height:40px;border-radius:var(--r-ctl);display:grid;place-items:center;
+  width:40px;height:40px;border-radius:14px;display:grid;place-items:center;
   background:var(--surface);border:1px solid var(--stroke);font-size:17px;
   transition:transform .18s var(--spring),background .2s;
   position:relative;flex:none;
 }
 .icon-btn:active{transform:scale(.88);background:var(--surface-2)}
 .dot-badge{
-  position:absolute;top:5px;right:5px;min-width:16px;height:16px;padding:0 4px;
+  position:absolute;top:6px;right:6px;min-width:16px;height:16px;padding:0 4px;
   border-radius:8px;background:var(--coral);color:#fff;font-size:10px;font-weight:800;
   display:grid;place-items:center;border:2px solid var(--ink);
 }
-.months{display:flex;gap:7px;overflow-x:auto;padding:12px 2px 2px;scroll-snap-type:x mandatory}
+.months{display:flex;gap:8px;overflow-x:auto;padding:12px 2px 2px;scroll-snap-type:x mandatory}
 .month-pill{
-  flex:none;scroll-snap-align:center;padding:7px 15px;border-radius:var(--r-pill);
-  background:transparent;border:1px solid var(--stroke);font-size:13px;font-weight:600;
-  color:var(--text-2);white-space:nowrap;transition:color .2s,background .2s,border-color .2s
+  flex:none;scroll-snap-align:center;padding:7px 15px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--stroke);font-size:13px;font-weight:600;
+  color:var(--text-2);white-space:nowrap;transition:all .22s var(--ease)
 }
 .month-pill.on{background:var(--text);color:var(--ink);border-color:transparent;font-weight:700}
 
 main{padding:4px 18px calc(var(--nav-h) + var(--safe-b) + 34px)}
-.view{display:none}
+.view{display:none;animation:viewIn .34s var(--ease)}
 .view.on{display:block}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
-/* El cambio de pestaña usa la API de transiciones de vista cuando el
-   navegador la tiene: el contenido se cruza en vez de parpadear. Si no
-   está, simplemente cambia sin animación. */
-@view-transition{navigation:auto}
-::view-transition-old(root),::view-transition-new(root){animation-duration:.26s}
-
-/* ---------- Tarjetas: hairline, no cristal ---------- */
+/* ---------- Bloques ---------- */
 .card{
-  background:var(--pane);border:1px solid var(--stroke);border-radius:var(--r-card);
-  padding:16px;margin-bottom:12px;
+  background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-lg);
+  padding:18px;margin-bottom:14px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
 }
-.card.tight{padding:13px}
-.sec-title{display:flex;align-items:baseline;justify-content:space-between;margin:24px 2px 10px}
-.sec-title h2{margin:0;font-size:14px;font-weight:800;letter-spacing:-.02em}
+.card.tight{padding:14px}
+.sec-title{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 10px}
+.sec-title h2{margin:0;font-size:15px;font-weight:800;letter-spacing:-.02em}
 .sec-title button{font-size:13px;font-weight:700;color:var(--violet)}
 .muted{color:var(--text-2);font-size:13px}
 .empty{
-  text-align:center;padding:26px 18px;border-radius:var(--r-card);
+  text-align:center;padding:26px 18px;border-radius:var(--r-md);
   border:1px dashed var(--stroke-2);color:var(--text-2);font-size:13.5px;line-height:1.55
 }
 .empty b{display:block;color:var(--text);font-size:14.5px;margin-bottom:4px}
 
-/* ---------- El héroe: el suelo, no una tarjeta ----------
-   Sin borde y sin fondo propio: es la base sobre la que está todo lo
-   demás. Antes era una tarjeta más, con el mismo cristal y el mismo
-   borde que los gráficos de abajo, y nada decía qué era lo importante. */
+/* ---------- Héroe: patrimonio ---------- */
 .hero{
-  position:relative;overflow:hidden;padding:4px 2px 0;margin:0 0 20px;
-  background:none;border:0;box-shadow:none;border-radius:0;
+  position:relative;overflow:hidden;border-radius:30px;padding:22px 20px 16px;margin-bottom:16px;
+  background:linear-gradient(150deg,rgba(139,108,255,.30),rgba(45,212,191,.14) 58%,transparent),var(--surface);
+  border:1px solid var(--stroke-2);box-shadow:var(--shadow);
 }
-.hero .lbl{font-size:12.5px;color:var(--text-2);font-weight:600;display:flex;align-items:center}
-.hero .big{
-  font-size:clamp(38px,12.5vw,52px);font-weight:700;margin:4px 0 0;line-height:1;
-  letter-spacing:-.04em;
-}
-.hero .sub{display:flex;align-items:center;gap:9px;margin-top:10px;font-size:12.5px;color:var(--text-2);flex-wrap:wrap}
-.delta{padding:3px 9px;border-radius:var(--r-pill);font-weight:700;font-size:12px}
-.delta.up{background:rgba(45,212,191,.14);color:var(--teal)}
-.delta.down{background:rgba(255,107,129,.14);color:var(--coral)}
-#spark{width:100%;height:58px;display:block;margin-top:14px}
+.hero .lbl{font-size:12px;color:var(--text-2);font-weight:600}
+.hero .big{font-size:clamp(34px,11vw,46px);font-weight:700;margin:2px 0 0;line-height:1.05}
+.hero .sub{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px;color:var(--text-2)}
+.delta{padding:3px 9px;border-radius:999px;font-weight:700;font-size:12px}
+.delta.up{background:rgba(45,212,191,.16);color:var(--teal)}
+.delta.down{background:rgba(255,107,129,.16);color:var(--coral)}
+#spark{width:100%;height:52px;display:block;margin-top:12px}
 
-/* ---------- Cuentas ----------
-   Sin gradientes de caramelo. El color de cada cuenta queda como un
-   acento fino arriba, no como relleno: el saldo es lo que importa, no
-   lo brillante que sea la tarjeta. */
-.banks{display:flex;gap:10px;overflow-x:auto;padding:2px 18px 6px;margin:0 -18px;scroll-snap-type:x mandatory}
+/* ---------- Tarjetas de banco ---------- */
+.banks{display:flex;gap:12px;overflow-x:auto;padding:2px 18px 6px;margin:0 -18px;scroll-snap-type:x mandatory}
 .bank{
-  flex:none;width:168px;scroll-snap-align:start;border-radius:var(--r-card);padding:14px;
-  position:relative;overflow:hidden;border:1px solid var(--stroke);background:var(--surface);
+  flex:none;width:172px;scroll-snap-align:start;border-radius:22px;padding:14px;
+  position:relative;overflow:hidden;border:1px solid var(--stroke-2);
   transition:transform .2s var(--spring);
 }
-.bank:active{transform:scale(.97)}
-/* El color de la cuenta: una línea arriba, nada más */
-.bank .glow{position:absolute;inset:auto;left:0;right:0;top:0;height:3px;border-radius:0}
+.bank:active{transform:scale(.965)}
+.bank .glow{position:absolute;inset:0;opacity:.9}
 .bank .in{position:relative}
-.bank .ico{font-size:18px;opacity:.9}
-.bank .nm{font-size:12.5px;font-weight:700;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bank .ty{font-size:10.5px;color:var(--text-2);font-weight:600}
-.bank .val{font-size:21px;font-weight:700;margin-top:9px;letter-spacing:-.03em}
-.bank .acts{display:flex;gap:6px;margin-top:11px}
+.bank .ico{font-size:20px}
+.bank .nm{font-size:12.5px;font-weight:700;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bank .ty{font-size:10.5px;opacity:.7;font-weight:600}
+.bank .val{font-size:19px;font-weight:700;margin-top:8px}
+.bank .acts{display:flex;gap:6px;margin-top:10px}
 .bank .acts button{
-  flex:1;padding:7px 0;border-radius:9px;font-size:11px;font-weight:700;
-  background:var(--surface-2);color:var(--text);border:1px solid var(--stroke);
-  transition:transform .15s var(--spring)
+  flex:1;padding:6px 0;border-radius:10px;font-size:11px;font-weight:700;
+  background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.22)
 }
-.bank .acts button:active{transform:scale(.93)}
-/* La bóveda: lo único sellado. Material distinto, más apagado, con una
-   trama fina que dice "esto no se toca". */
-.bank.sellada{
-  background:
-    repeating-linear-gradient(135deg,rgba(255,255,255,.022) 0 2px,transparent 2px 7px),
-    var(--sealed);
-  border-color:var(--stroke-2);
-  border-style:solid;
-}
-.bank.sellada .val{color:var(--text-2)}
 .bank-add{
-  flex:none;width:94px;scroll-snap-align:start;border-radius:var(--r-card);display:grid;place-items:center;
-  border:1px dashed var(--stroke-2);background:none;color:var(--text-2);
+  flex:none;width:96px;scroll-snap-align:start;border-radius:22px;display:grid;place-items:center;
+  border:1px dashed var(--stroke-2);background:var(--surface);color:var(--text-2);
   font-size:12px;font-weight:700;gap:4px;text-align:center;line-height:1.3
 }
 .bank-add span{font-size:22px;display:block}
 
-/* ---------- Cifras del mes ---------- */
-.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:9px}
-/* En el tablero las cifras del mes van como una cuadrícula de datos, no como
-   tarjetas: las separa la línea, igual que en un estado de cuenta. */
-#view-tablero .metrics{grid-template-columns:1fr 1fr;gap:0;
-  border-top:1px solid var(--stroke)}
-#view-tablero .metric{background:none;border:0;border-radius:0;
-  border-bottom:1px solid var(--stroke);padding:11px 2px 10px}
-#view-tablero .metric:nth-child(odd){border-right:1px solid var(--stroke);padding-right:12px}
-#view-tablero .metric:nth-child(even){padding-left:13px}
-#view-tablero .metrics + .metrics{border-top:0;margin-top:0 !important}
-.metric{
-  background:var(--pane);border:1px solid var(--stroke);border-radius:var(--r-ctl);
-  padding:11px 12px 12px;cursor:pointer;
-  transition:transform .16s var(--spring),background .2s
-}
-.metric:active{transform:scale(.96);background:var(--surface)}
+/* ---------- Métricas ---------- */
+/* minmax(0,1fr) y no 1fr: con 1fr la columna nunca se encoge por debajo de su
+   contenido, así que una cifra larga empujaba la rejilla más allá del ancho de
+   la pantalla y la tercera tarjeta salía cortada. */
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+/* Las tarjetas de cifras se acomodan solas: tres por fila cuando hay sitio y
+   dos cuando la pantalla es estrecha o la letra es grande. Con tres columnas
+   fijas, "Q 4,506.80" no cabía y la cifra salía cortada. */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+.metric{background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-md);padding:12px 12px 13px}
 .metric .k{font-size:11px;color:var(--text-2);font-weight:600;display:flex;align-items:center;gap:4px}
-.metric .v{
-  font-size:clamp(15px,4.6vw,21px);font-weight:700;margin-top:3px;letter-spacing:-.035em;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-}
+/* La cifra se achica sola si no cabe, en vez de desbordar la tarjeta. */
+.metric .v{font-size:clamp(13px,4.2vw,17px);font-weight:700;margin-top:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v.pos{color:var(--teal)} .v.neg{color:var(--coral)} .v.acc{color:var(--violet)}
-.metric .k .qm{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
-  background:var(--surface-2);font-size:9px;font-weight:800;margin-left:2px;color:var(--text-2)}
-
-/* ---------- El ciclo como cascada ----------
-   Lo más importante de la app dejó de ser un párrafo. Entró arriba,
-   cada salida baja un escalón, y lo que queda es la última barra. */
-.flow{margin-top:14px}
-.flow-row{
-  display:grid;grid-template-columns:1fr auto;align-items:center;
-  column-gap:10px;row-gap:0;padding:8px 0 9px;
-}
-.flow-row + .flow-row{border-top:1px solid var(--stroke)}
-.flow-row .fl{display:flex;align-items:center;gap:8px;min-width:0}
-.flow-row .fl i{
-  font-style:normal;width:3px;height:17px;border-radius:2px;flex:none;background:var(--text-3)
-}
-.flow-row .fl span{font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.flow-row .fv{font-size:14.5px;font-weight:700;letter-spacing:-.025em;white-space:nowrap}
-.flow-bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin-top:5px}
-.flow-bar>i{display:block;height:100%;border-radius:3px;transform-origin:left;
-  animation:flowGrow .55s var(--ease) both}
-@keyframes flowGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.flow-row.entra .fl i{background:var(--teal)}
-.flow-row.sale  .fl i{background:var(--coral)}
-.flow-row.fijo  .fl i{background:var(--gold)}
-.flow-row.guarda .fl i{background:var(--violet)}
-.flow-row.entra .fv{color:var(--teal)}
-.flow-row.queda{
-  border-top:1px solid var(--stroke-2);margin-top:4px;padding-top:11px
-}
-.flow-row.queda .fl span{color:var(--text);font-weight:700;font-size:13.5px}
-.flow-row.queda .fv{font-size:19px}
 
 /* ---------- Anillo de salud ---------- */
 .health{display:flex;align-items:center;gap:16px}
-.ring{position:relative;width:88px;height:88px;flex:none}
+.ring{position:relative;width:96px;height:96px;flex:none}
 .ring svg{transform:rotate(-90deg)}
 .ring .mid{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
-.ring .mid b{font-size:23px;font-weight:700;line-height:1;letter-spacing:-.03em}
+.ring .mid b{font-size:24px;font-weight:700;line-height:1}
 .ring .mid i{font-style:normal;font-size:10px;color:var(--text-2);font-weight:600}
 .health .txt{flex:1;min-width:0}
-.health .txt h3{margin:0 0 4px;font-size:15px;font-weight:800;letter-spacing:-.02em}
-.streak{display:inline-flex;align-items:center;gap:6px;margin-top:9px;padding:5px 11px;
-  border-radius:var(--r-pill);background:var(--violet-soft);color:var(--violet);font-size:12px;font-weight:700}
+.health .txt h3{margin:0 0 4px;font-size:15px;font-weight:800}
+.streak{display:inline-flex;align-items:center;gap:6px;margin-top:9px;padding:5px 11px;border-radius:999px;background:var(--violet-soft);color:var(--violet);font-size:12px;font-weight:700}
 
 /* ---------- Dona ---------- */
 .donut-wrap{display:flex;align-items:center;gap:16px}
-.donut{width:112px;height:112px;flex:none;position:relative}
+.donut{width:118px;height:118px;flex:none;position:relative}
 .donut .mid{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
-.donut .mid b{font-size:15px;font-weight:700;letter-spacing:-.03em}
+.donut .mid b{font-size:15px;font-weight:700}
 .donut .mid i{font-style:normal;font-size:10px;color:var(--text-2);display:block}
-.legend{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
-.legend div{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;
-  border-radius:7px;padding:2px 4px;margin:-2px -4px;transition:background .18s}
-.legend div:active{background:var(--surface-2)}
-.legend i{width:8px;height:8px;border-radius:2px;flex:none}
+.legend{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.legend div{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.legend i{width:9px;height:9px;border-radius:3px;flex:none}
 .legend span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
 .legend b{font-weight:700}
 
 /* ---------- Chips ---------- */
 .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
 .chip{
-  flex:none;padding:8px 14px;border-radius:var(--r-pill);background:var(--surface);
+  flex:none;padding:8px 14px;border-radius:999px;background:var(--surface);
   border:1px solid var(--stroke);font-size:12.5px;font-weight:600;white-space:nowrap;
   transition:transform .16s var(--spring),background .2s,border-color .2s;
 }
-.chip:active{transform:scale(.93)}
+.chip:active{transform:scale(.92)}
 .chip.on{background:var(--violet);border-color:transparent;color:#fff;font-weight:700}
 .chip.wrap{flex-wrap:wrap}
 .chips.wrap{flex-wrap:wrap;overflow:visible}
 .catchip{
-  padding:7px 12px;border-radius:var(--r-pill);background:var(--surface);
+  padding:7px 12px;border-radius:999px;background:var(--surface);
   border:1px solid var(--stroke);font-size:12px;font-weight:600;color:var(--text);
   transition:transform .16s var(--spring),background .2s,border-color .2s;
 }
 .catchip:active{transform:scale(.93)}
 .catchip.on{background:var(--violet);border-color:transparent;color:#fff;font-weight:700}
 
-/* ==========================================================
-   EL TABLERO COMO INSTRUMENTO
-   Antes eran trece secciones apiladas en un scroll sin fin, todas con la
-   misma forma de tarjeta redondeada. Ahora la estructura la llevan las
-   líneas y la alineación, no cajas flotantes, y las trece secciones viven
-   detrás de un selector: una a la vez, cada una corta.
-   ========================================================== */
-#view-tablero .card{
-  background:none;border:0;border-radius:0;box-shadow:none;
-  padding:14px 0;margin:0;border-top:1px solid var(--stroke);
-}
-#view-tablero .card.tight{padding:12px 0}
-#view-tablero .sec-title{margin:18px 0 8px}
-#view-tablero .panel > .card:first-child,
-#view-tablero .panel > .sec-title:first-child{border-top:0;margin-top:4px}
-
-.accesos{display:flex;align-items:center;gap:9px;padding:4px 0 2px;font-size:12.5px}
-.accesos button{color:var(--violet);font-weight:600;padding:4px 0;
-  -webkit-tap-highlight-color:transparent}
-.accesos button:active{opacity:.6}
-.accesos span{color:var(--text-3)}
-
-/* ---------- La pista del ciclo ---------- */
-.pista{padding:12px 0 10px;border-bottom:1px solid var(--stroke)}
-.pista-top{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
-.pista-ini,.pista-fin{font-size:11px;color:var(--text-3);
-  font-family:"IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.02em}
-.pista-mid{flex:1;text-align:center;font-size:11.5px;font-weight:700;color:var(--text-2)}
-.pista-dias{display:flex;align-items:flex-end;gap:2px;height:46px;
-  -webkit-tap-highlight-color:transparent}
-.pista-d{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;
-  align-items:center;gap:3px;height:100%;background:none;border:0;padding:0;cursor:pointer}
-.pista-d .barra{width:100%;border-radius:2px 2px 0 0;background:var(--text-3);
-  min-height:2px;transition:height .5s var(--spring),background .2s}
-.pista-d .n{font-size:8.5px;line-height:1;color:var(--text-3);
-  font-family:"IBM Plex Mono",ui-monospace,monospace}
-.pista-d.futuro .barra{background:var(--stroke)}
-.pista-d.oficina .n{color:var(--violet);font-weight:600}
-.pista-d.vence .barra{box-shadow:inset 0 2px 0 var(--gold)}
-.pista-d.hoy .barra{background:var(--teal)}
-.pista-d.hoy .n{color:var(--teal);font-weight:700}
-.pista-d.sel .barra{background:#fff}
-.pista-d.sel .n{color:#fff;font-weight:700}
-.pista-d:active{transform:translateY(1px)}
-.pista-pie{margin-top:8px;font-size:11px;color:var(--text-2);min-height:15px;line-height:1.4}
-.pista-pie em{font-style:normal;color:var(--text-3)}
-
-/* ---------- La cifra ---------- */
-.cifra{padding:13px 0 12px;border-bottom:1px solid var(--stroke)}
-.cifra .lbl{display:flex;align-items:center;font-size:11.5px;font-weight:600;
-  color:var(--text-2);margin-bottom:3px}
-.cifra .big{font-size:clamp(34px,10.5vw,46px);font-weight:500;line-height:1.02;
-  letter-spacing:-.045em;word-spacing:-.34em}
-.cifra .sub{display:flex;align-items:center;gap:9px;margin-top:7px;flex-wrap:wrap;
-  font-size:12px;color:var(--text-2)}
-
-/* ---------- Dónde está el dinero ---------- */
-.reparto{padding:2px 0 14px}
-.reparto-lbl{display:flex;justify-content:space-between;align-items:baseline;
-  font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:8px}
-.reparto-lbl span:last-child{color:var(--text-3);font-weight:500}
-.reparto-barra{display:flex;height:9px;border-radius:99px;overflow:hidden;gap:2px}
-.reparto-barra i{display:block;min-width:3px;transition:flex-grow .6s var(--spring)}
-.reparto-barra i.sellada{background:var(--text-3) !important;
-  background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.5) 0 2px,transparent 2px 5px) !important}
-.reparto-leyenda{display:flex;flex-wrap:wrap;gap:4px 13px;margin-top:9px;font-size:11px;
-  color:var(--text-2)}
-.reparto-leyenda span{display:inline-flex;align-items:center;gap:5px}
-.reparto-leyenda b{width:6px;height:6px;border-radius:2px;flex:none}
-.reparto-leyenda b.sellada{background:var(--text-3) !important}
-.reparto-leyenda u{text-decoration:none;color:var(--text);
-  font-family:"IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.03em}
-
-/* ---------- Selector de paneles ---------- */
-.segs{display:flex;overflow-x:auto;scrollbar-width:none;
-  padding:14px 0 2px;border-bottom:1px solid var(--stroke);margin-bottom:2px;
-  scroll-snap-type:x proximity}
-.segs::-webkit-scrollbar{display:none}
-.cdtab{flex:none;scroll-snap-align:start;background:none;border:0;
-  padding:7px 2px;margin-right:14px;font-size:13.5px;font-weight:600;color:var(--text-3);
-  position:relative;white-space:nowrap;-webkit-tap-highlight-color:transparent;
-  transition:color .2s}
-.cdtab::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;
-  border-radius:2px;background:var(--violet);transform:scaleX(0);
-  transition:transform .26s var(--spring)}
-.cdtab.on{color:var(--text)}
-.cdtab.on::after{transform:scaleX(1)}
-.panel{display:none}
-.panel.on{display:block;animation:panelEntra .34s var(--spring) both}
-@keyframes panelEntra{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){
-  .panel.on{animation:none}
-  .pista-d .barra,.reparto-barra i,.cdtab::after{transition:none}
-}
-
-/* ---------- Movimientos ---------- */
+/* ---------- Lista de movimientos ---------- */
 .tx{
-  display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:var(--r-ctl);
-  background:var(--pane);border:1px solid var(--stroke);margin-bottom:7px;
+  display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--r-md);
+  background:var(--surface);border:1px solid var(--stroke);margin-bottom:8px;
   transition:transform .16s var(--spring);
 }
 .tx:active{transform:scale(.985)}
-.tx .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:16px;flex:none}
+.tx .ic{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:17px;flex:none}
 .tx .bd{flex:1;min-width:0}
 .tx .bd b{display:block;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tx .bd span{display:block;font-size:11.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tx .am{text-align:right;flex:none}
-.tx .am b{display:block;font-size:15px;font-weight:700;letter-spacing:-.025em}
+.tx .am b{display:block;font-size:15px;font-weight:700}
 .tx .am span{font-size:10.5px;color:var(--text-3)}
-.txday{display:flex;align-items:baseline;gap:10px;margin:11px 3px 6px;padding-bottom:4px;
-  border-bottom:1px solid var(--stroke)}
-#txList > .txday:first-child{margin-top:0}
-.txday span{flex:1;font-size:11.5px;font-weight:700;color:var(--text-2)}
-.txday i{font-style:normal;font-size:11px;color:var(--text-3)}
-.hint{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;
-  background:var(--surface-2);border:0;color:var(--text-3);
-  font-size:10px;font-weight:800;margin-left:6px;vertical-align:middle;flex:none;line-height:1;
-  transition:transform .16s var(--spring),color .2s}
-.hint:active{transform:scale(.82);color:var(--text)}
+.hint{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;
+  background:var(--surface-2);border:1px solid var(--stroke);color:var(--text-2);
+  font-size:10.5px;font-weight:800;margin-left:6px;vertical-align:middle;flex:none;line-height:1;
+  transition:transform .16s var(--spring)}
+.hint:active{transform:scale(.82)}
 .tip{font-size:12.5px;line-height:1.5;color:var(--text-2);display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--stroke)}
 .tip:last-child{border-bottom:0}
 .tip em{font-style:normal;font-size:15px;flex:none}
@@ -488,146 +281,147 @@ main{padding:4px 18px calc(var(--nav-h) + var(--safe-b) + 34px)}
 .strat-intro{font-size:13px;line-height:1.55;color:var(--text-2)}
 .swatch-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
 
-/* ---------- Barras ---------- */
-.bar{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:7px}
+/* ---------- Barras de presupuesto ---------- */
+.bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:7px}
 .bar>i{display:block;height:100%;border-radius:99px;transition:width .7s var(--ease)}
-.bud{padding:12px 0;border-bottom:1px solid var(--stroke)}
+.bud{padding:13px 0;border-bottom:1px solid var(--stroke)}
 .bud:last-child{border-bottom:0;padding-bottom:0}
 .bud .hd{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700}
 .bud .hd .r{margin-left:auto;font-weight:700;font-size:12.5px}
 
 /* ---------- Metas ---------- */
-.goal{background:var(--pane);border:1px solid var(--stroke);border-radius:var(--r-card);padding:15px;margin-bottom:10px}
+.goal{background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-md);padding:15px;margin-bottom:10px}
 .goal .hd{display:flex;align-items:center;gap:10px}
-.goal .hd .e{font-size:21px}
+.goal .hd .e{font-size:22px}
 .goal .hd b{font-size:14.5px;font-weight:800}
 .goal .hd span{display:block;font-size:11.5px;color:var(--text-2)}
 .goal .acts{display:flex;gap:7px;margin-top:12px}
-.goal .acts button{flex:1;padding:8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--surface);border:1px solid var(--stroke)}
+.goal .acts button{flex:1;padding:8px;border-radius:11px;font-size:12px;font-weight:700;background:var(--surface-2);border:1px solid var(--stroke)}
 .goal .acts button.p{background:var(--violet);color:#fff;border-color:transparent}
 
 /* ---------- Obligaciones ---------- */
 .oblig{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--stroke)}
 .oblig:last-child{border-bottom:0}
-.oblig .e{width:34px;height:34px;border-radius:10px;background:var(--surface);display:grid;place-items:center;font-size:15px;flex:none}
+.oblig .e{width:36px;height:36px;border-radius:12px;background:var(--surface-2);display:grid;place-items:center;font-size:16px;flex:none}
 .oblig .bd{flex:1;min-width:0}
 .oblig .bd b{font-size:13.5px;font-weight:700;display:block}
 .oblig .bd span{font-size:11px;color:var(--text-2)}
-.tag{padding:4px 9px;border-radius:7px;font-size:10.5px;font-weight:800;flex:none}
-.tag.ok{background:rgba(45,212,191,.14);color:var(--teal)}
-.tag.due{background:rgba(255,107,129,.14);color:var(--coral)}
-.tag.soon{background:rgba(255,196,107,.16);color:var(--gold)}
-.tag.part{background:rgba(95,197,255,.14);color:var(--sky)}
+.tag{padding:4px 9px;border-radius:8px;font-size:10.5px;font-weight:800;flex:none}
+.tag.ok{background:rgba(45,212,191,.16);color:var(--teal)}
+.tag.due{background:rgba(255,107,129,.16);color:var(--coral)}
+.tag.soon{background:rgba(255,196,107,.18);color:var(--gold)}
+.tag.part{background:rgba(95,197,255,.16);color:var(--sky)}
 
-/* ---------- Tarjeta de crédito ----------
-   Una deuda no es una tarjeta bonita. Fondo liso y la cifra al frente;
-   el color lo pone la barra de uso, que es la que informa. */
-.tc{border-radius:var(--r-card);padding:17px;border:1px solid var(--stroke);
-  position:relative;overflow:hidden;background:var(--pane)}
+/* ---------- Tarjeta de crédito ---------- */
+.tc{border-radius:24px;padding:18px;border:1px solid var(--stroke-2);position:relative;overflow:hidden;
+  background:linear-gradient(135deg,rgba(255,107,129,.26),rgba(139,108,255,.20)),var(--surface)}
 .tc .row{display:flex;align-items:flex-end;justify-content:space-between}
-.tc .amt{font-size:30px;font-weight:700;letter-spacing:-.035em}
+.tc .amt{font-size:27px;font-weight:700}
 
 /* ---------- Estrategias ---------- */
-.seg{display:flex;gap:4px;background:var(--pane);border:1px solid var(--stroke);border-radius:var(--r-ctl);padding:4px;margin-bottom:14px}
-.seg button{flex:1;padding:9px 4px;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--text-2);transition:color .2s,background .2s}
+.seg{display:flex;gap:5px;background:var(--surface);border:1px solid var(--stroke);border-radius:15px;padding:5px;margin-bottom:14px}
+.seg button{flex:1;padding:9px 4px;border-radius:11px;font-size:12.5px;font-weight:700;color:var(--text-2);transition:all .25s var(--ease)}
 .seg button.on{background:var(--violet);color:#fff}
-.kak{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.kak .b{border-radius:var(--r-ctl);padding:12px;border:1px solid var(--stroke)}
-.kak .b b{display:block;font-size:19px;font-weight:700;margin-top:3px;letter-spacing:-.03em}
+.kak{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kak .b{border-radius:var(--r-md);padding:13px;border:1px solid var(--stroke)}
+.kak .b b{display:block;font-size:19px;font-weight:700;margin-top:3px}
 .kak .b span{font-size:11.5px;font-weight:700}
 textarea.note{
   width:100%;min-height:82px;margin-top:12px;background:var(--surface);border:1px solid var(--stroke);
-  border-radius:var(--r-ctl);padding:12px;font-size:13.5px;resize:vertical;color:var(--text)
+  border-radius:var(--r-md);padding:12px;font-size:13.5px;resize:vertical;color:var(--text)
 }
 
 /* ---------- Historial agrupado ---------- */
-.hgroup{background:var(--pane);border:1px solid var(--stroke);border-radius:var(--r-ctl);margin-bottom:7px;overflow:hidden}
-.hgroup .hh{display:flex;align-items:center;gap:10px;padding:12px 13px}
+.hgroup{background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-md);margin-bottom:8px;overflow:hidden}
+.hgroup .hh{display:flex;align-items:center;gap:10px;padding:13px}
 .hgroup .hh b{font-size:13.5px;font-weight:700;text-transform:capitalize}
 .hgroup .hh .arrow{margin-left:auto;font-size:11px;color:var(--text-3);transition:transform .25s var(--ease)}
 .hgroup.open .hh .arrow{transform:rotate(90deg)}
 .hgroup .det{display:none;padding:0 13px 13px;border-top:1px solid var(--stroke)}
-.hgroup.open .det{display:block}
+.hgroup.open .det{display:block;animation:viewIn .25s var(--ease)}
 .minirow{display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--stroke)}
 .minirow:last-child{border-bottom:0}
 
-/* ---------- Barra inferior ---------- */
+/* ---------- Nav inferior + FAB ---------- */
 nav.tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:50;
   max-width:520px;margin:0 auto;padding:8px 14px calc(8px + var(--safe-b));
   display:flex;align-items:center;gap:6px;
-  background:color-mix(in srgb,var(--ink) 88%,transparent);
+  background:color-mix(in srgb,var(--ink) 86%,transparent);
   backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
   border-top:1px solid var(--stroke);
 }
 nav.tabbar button.tab{
   flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;
-  border-radius:var(--r-ctl);color:var(--text-3);font-size:10.5px;font-weight:700;transition:color .2s
+  border-radius:14px;color:var(--text-3);font-size:10.5px;font-weight:700;transition:color .2s
 }
 nav.tabbar button.tab .ti{font-size:19px;transition:transform .3s var(--spring)}
 nav.tabbar button.tab.on{color:var(--violet)}
-nav.tabbar button.tab.on .ti{transform:translateY(-2px) scale(1.12)}
+nav.tabbar button.tab.on .ti{transform:translateY(-2px) scale(1.14)}
 .fab{
-  width:56px;height:56px;border-radius:18px;flex:none;display:grid;place-items:center;
-  background:var(--violet);color:#fff;font-size:26px;font-weight:300;
-  box-shadow:0 10px 24px -10px rgba(139,108,255,.85);margin:0 2px -6px;
+  width:58px;height:58px;border-radius:20px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(140deg,var(--violet),#5B8CFF);color:#fff;font-size:26px;font-weight:300;
+  box-shadow:0 12px 26px -8px rgba(139,108,255,.8);margin:0 2px -6px;
   transition:transform .22s var(--spring)
 }
 .fab:active{transform:scale(.9) rotate(45deg)}
 
-/* ---------- Hojas ---------- */
+/* ---------- Sheets / modales ---------- */
 .scrim{
-  position:fixed;inset:0;z-index:60;background:rgba(4,6,18,.62);backdrop-filter:blur(5px);
+  position:fixed;inset:0;z-index:60;background:rgba(4,6,18,.6);backdrop-filter:blur(6px);
   opacity:0;pointer-events:none;transition:opacity .28s var(--ease)
 }
 .scrim.on{opacity:1;pointer-events:auto}
 .sheet{
   position:fixed;left:0;right:0;bottom:0;z-index:61;max-width:520px;margin:0 auto;
-  background:var(--ink-2);border-radius:26px 26px 0 0;border:1px solid var(--stroke-2);border-bottom:0;
+  background:var(--ink-2);border-radius:30px 30px 0 0;border:1px solid var(--stroke-2);border-bottom:0;
   padding:8px 18px calc(20px + var(--safe-b));max-height:92vh;overflow-y:auto;
   transform:translateY(102%);transition:transform .42s var(--spring);
 }
-:root[data-theme="dark"] .sheet{background:var(--ink-3)}
+:root[data-theme="dark"] .sheet{background:#141938}
 .sheet.on{transform:none}
-.grab{width:36px;height:4px;border-radius:99px;background:var(--stroke-2);margin:6px auto 14px}
-.sheet h3{margin:0 0 3px;font-size:19px;font-weight:800;letter-spacing:-.03em}
+.grab{width:38px;height:4px;border-radius:99px;background:var(--stroke-2);margin:6px auto 14px}
+.sheet h3{margin:0 0 3px;font-size:19px;font-weight:800;letter-spacing:-.025em}
 .sheet .sub{font-size:12.5px;color:var(--text-2);margin-bottom:16px}
 label.f{display:block;margin-bottom:12px}
 label.f>span{display:block;font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px}
 .inp{
-  width:100%;padding:13px 14px;border-radius:var(--r-ctl);background:var(--surface);
+  width:100%;padding:13px 14px;border-radius:15px;background:var(--surface);
   border:1px solid var(--stroke);font-size:15px;transition:border-color .2s,background .2s
 }
 .inp:focus{border-color:var(--violet);background:var(--surface-2)}
 select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--text-2) 50%),linear-gradient(135deg,var(--text-2) 50%,transparent 50%);
   background-position:calc(100% - 19px) 21px,calc(100% - 14px) 21px;background-size:5px 5px;background-repeat:no-repeat}
 .btn{
-  width:100%;padding:15px;border-radius:14px;font-size:15px;font-weight:800;
+  width:100%;padding:15px;border-radius:17px;font-size:15px;font-weight:800;
   background:var(--violet);color:#fff;transition:transform .18s var(--spring),opacity .2s;margin-top:4px
 }
 .btn:active{transform:scale(.97)}
 .btn.ghost{background:var(--surface);border:1px solid var(--stroke);color:var(--text)}
-.btn.danger{background:rgba(255,107,129,.13);color:var(--coral);border:1px solid rgba(255,107,129,.28)}
+.btn.danger{background:rgba(255,107,129,.15);color:var(--coral);border:1px solid rgba(255,107,129,.3)}
 .btn-row{display:flex;gap:10px}
 .swatches{display:flex;gap:9px;flex-wrap:wrap}
-.swatches button{width:34px;height:34px;border-radius:11px;border:2px solid transparent;transition:transform .18s var(--spring)}
+.swatches button{width:34px;height:34px;border-radius:12px;border:2px solid transparent;transition:transform .18s var(--spring)}
 .swatches button.on{border-color:var(--text);transform:scale(1.12)}
-.presets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.presets button{padding:11px 4px;border-radius:var(--r-ctl);background:var(--surface);border:1px solid var(--stroke);font-size:10.5px;font-weight:700;line-height:1.3}
+.presets{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.presets button{padding:11px 4px;border-radius:15px;background:var(--surface);border:1px solid var(--stroke);font-size:10.5px;font-weight:700;line-height:1.3}
 .presets button em{display:block;font-style:normal;font-size:21px;margin-bottom:3px}
 .presets button.on{border-color:var(--violet);background:var(--violet-soft)}
-/* Dos filas y media: la media fila de abajo es la que avisa de que hay
-   más iconos. Con la cuarta fila asomando 17px no se veía entera ni se
-   entendía que se deslizaba: parecía cortada. */
+/* Dos filas y media: la media fila de abajo es la que avisa de que hay más
+   iconos. Antes asomaban 17px de la cuarta fila, que no se ve entera ni se
+   entiende que se desliza: parecía que la rejilla estaba cortada. */
 .presets.scroll{
   /* position:relative para que offsetTop de cada icono se mida contra la
-     rejilla y no contra un ancestro cualquiera. */
+     rejilla. Sin esto se mide contra un ancestro cualquiera y el cálculo de
+     "trae el elegido a la vista" apunta a otro sitio. */
   position:relative;
   max-height:157px;overflow-y:auto;overscroll-behavior:contain;padding:2px 2px 0;
   scrollbar-width:thin;
   -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);
   mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)
 }
+/* Al llegar al final se quita el difuminado, para que el último icono no
+   quede medio borrado cuando ya no hay nada más abajo. */
 .presets.scroll.fin{-webkit-mask-image:none;mask-image:none}
 .icono-libre{margin-top:9px}
 .icono-libre input{font-size:13px;padding:10px 12px}
@@ -635,97 +429,92 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 /* ---------- Registro rápido ---------- */
 .q-amount{text-align:center;padding:12px 0 6px}
 .q-amount .cur{font-size:19px;color:var(--text-2);font-weight:700;vertical-align:super}
-.q-amount .n{font-size:52px;font-weight:700;letter-spacing:-.045em}
+.q-amount .n{font-size:50px;font-weight:700;letter-spacing:-.04em}
 .q-amount .n.dim{color:var(--text-3)}
-.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}
 .numpad button{
-  padding:15px 0;border-radius:14px;background:var(--surface);border:1px solid var(--stroke);
-  font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;
+  padding:15px 0;border-radius:17px;background:var(--surface);border:1px solid var(--stroke);
+  font-size:22px;font-weight:600;font-family:"Space Grotesk",sans-serif;
   transition:transform .12s var(--spring),background .12s
 }
 .numpad button:active{transform:scale(.92);background:var(--violet-soft)}
 .q-label{font-size:11.5px;font-weight:700;color:var(--text-2);margin:14px 0 7px}
 
 /* ---------- Alertas ---------- */
-.alert{display:flex;gap:11px;padding:12px;border-radius:var(--r-ctl);background:var(--pane);border:1px solid var(--stroke);margin-bottom:8px}
+.alert{display:flex;gap:11px;padding:12px;border-radius:15px;background:var(--surface);border:1px solid var(--stroke);margin-bottom:8px}
 .alert .e{font-size:17px}
 .alert .bd{flex:1;font-size:13px;line-height:1.45}
 .alert .bd b{display:block;font-size:13px;margin-bottom:1px}
-.alert.warn{border-color:rgba(255,196,107,.3);background:rgba(255,196,107,.07)}
-.alert.bad{border-color:rgba(255,107,129,.3);background:rgba(255,107,129,.07)}
-.alert.good{border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.07)}
+.alert.warn{border-color:rgba(255,196,107,.35);background:rgba(255,196,107,.09)}
+.alert.bad{border-color:rgba(255,107,129,.35);background:rgba(255,107,129,.09)}
+.alert.good{border-color:rgba(45,212,191,.35);background:rgba(45,212,191,.09)}
 
-/* El aviso baja desde arriba pero NO tapa el selector de mes: se coloca
-   por debajo del encabezado, que es lo que pasaba antes. */
-/* El aviso se mete en el flujo de la página en vez de flotar encima: antes
-   tapaba el selector de mes y los botones de Resumen y Reportes, que es
-   justo donde cae. Mientras está visible, el contenido baja; cuando se va,
-   vuelve a su sitio. */
-#banner{
-  position:relative;margin:0 0 -4px;z-index:5;
-  display:flex;gap:11px;align-items:flex-start;padding:12px 15px;
-  border-radius:var(--r-card);background:var(--ink-3);border:1px solid var(--stroke-2);
-  box-shadow:var(--shadow-sm);
-  max-height:0;opacity:0;padding-top:0;padding-bottom:0;overflow:hidden;
-  transition:max-height .38s var(--ease),opacity .3s,padding .38s var(--ease),margin .38s var(--ease)
-}
-#banner.on{max-height:150px;opacity:1;padding-top:12px;padding-bottom:12px;margin-bottom:12px}
+#banner{position:fixed;top:calc(var(--safe-t) + 10px);left:50%;transform:translate(-50%,-160%);
+  z-index:95;width:min(92%,470px);display:flex;gap:11px;align-items:flex-start;padding:13px 15px;
+  border-radius:20px;background:var(--ink-2);border:1px solid var(--stroke-2);box-shadow:var(--shadow);
+  transition:transform .45s var(--spring)}
+:root[data-theme="dark"] #banner{background:#1A2046}
+#banner.on{transform:translate(-50%,0)}
 #banner .e{font-size:19px;flex:none}
 #banner .bd{flex:1;min-width:0}
 #banner .bd b{display:block;font-size:13.5px;font-weight:800;margin-bottom:2px}
 #banner .bd span{font-size:12.5px;color:var(--text-2);line-height:1.45}
 
-/* ---------- Movimiento ----------
-   Solo donde responde a algo que hizo la persona, más un único momento
-   al abrir: las barras crecen y la línea se dibuja, una vez. Antes había
-   cuatro animaciones infinitas (un rastro girando en la dona, otro en la
-   línea, un barrido y un parpadeo) corriendo para siempre: ruido visual
-   y batería gastada sin que nadie lo pidiera. */
-@keyframes barGrow{from{transform:scaleY(0);opacity:.35}to{transform:scaleY(1);opacity:1}}
-svg .barA,svg .barB{transform-box:fill-box;transform-origin:bottom;animation:barGrow .6s var(--spring) both}
+@keyframes barGrow{from{transform:scaleY(0);opacity:.3}to{transform:scaleY(1);opacity:1}}
+svg .barA,svg .barB{transform-box:fill-box;transform-origin:bottom;animation:barGrow .62s cubic-bezier(.32,1.28,.4,1) both}
 svg .barA{cursor:pointer}
 svg .barA:active{opacity:.7}
-/* La marca blanca sobre cada barra: antes parpadeaba sin parar. Quieta es
-   mejor — señala el tope exacto, que es justo lo que uno quiere leer. */
-svg .cap{opacity:.85}
-@keyframes popIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes popIn{from{transform:scale(.86);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-/* La línea del patrimonio se dibuja sola al abrir, una sola vez */
-@keyframes drawLine{from{stroke-dashoffset:var(--largo)}to{stroke-dashoffset:0}}
-#spark path.area{animation:fadeIn .7s .25s both}
-#spark path.linea{animation:drawLine .9s var(--ease) both}
+/* Rastro de luz recorriendo el contorno */
+@keyframes traceRing{to{stroke-dashoffset:-100}}
+@keyframes traceLine{to{stroke-dashoffset:-1}}
+@keyframes sweepX{0%{transform:translateX(-110px)}100%{transform:translateX(430px)}}
+@keyframes capPulse{0%,100%{opacity:.45}50%{opacity:1}}
+#donutSvg .tracer{animation:traceRing 6.5s linear infinite;filter:drop-shadow(0 0 3px currentColor)}
+#donutSvg .tracer.inner{animation-duration:8s;animation-direction:reverse}
+#spark .trail{animation:traceLine 4s linear infinite}
+svg .sweep{animation:sweepX 4.2s ease-in-out infinite;pointer-events:none}
+svg .cap{animation:capPulse 2.4s ease-in-out infinite}
+#spark path.area{animation:fadeIn .8s .2s both}
+svg .barA{filter:drop-shadow(0 0 5px currentColor)}
 svg .hit{cursor:pointer}
 svg .hit:active{fill:rgba(255,255,255,.06)}
-.pop{animation:popIn .4s var(--spring) both}
-#donutSvg circle{transition:stroke-dasharray .85s var(--ease),stroke-width .2s}
+.pop{animation:popIn .45s var(--spring) both}
+#donutSvg circle{transition:stroke-dasharray .85s cubic-bezier(.22,.7,.3,1),stroke-width .2s}
 #donutSvg circle.seg{cursor:pointer}
 #donutSvg circle.seg:active{stroke-width:19}
-.rep-card{background:var(--pane);border:1px solid var(--stroke);border-radius:var(--r-ctl);padding:14px;margin-bottom:10px}
+.legend div{cursor:pointer;border-radius:8px;padding:2px 4px;margin:-2px -4px;transition:background .18s}
+.legend div:active{background:var(--surface-2)}
+.metric{cursor:pointer;transition:transform .16s var(--spring),background .2s}
+.metric:active{transform:scale(.95);background:var(--surface-2)}
+.metric .k .qm{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+  background:var(--surface-2);font-size:9px;font-weight:800;margin-left:3px;color:var(--text-2)}
+.rep-card{background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-md);padding:14px;margin-bottom:10px}
 .rep-card h4{margin:0 0 8px;font-size:13.5px;font-weight:800}
 
 /* ---------- Toast ---------- */
 #toast{
   position:fixed;left:50%;bottom:calc(var(--nav-h) + var(--safe-b) + 18px);transform:translate(-50%,24px);
-  z-index:90;background:var(--text);color:var(--ink);padding:11px 20px;border-radius:var(--r-pill);
-  font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .3s var(--ease),transform .3s var(--spring);
+  z-index:90;background:var(--text);color:var(--ink);padding:11px 20px;border-radius:999px;
+  font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:all .3s var(--spring);
   max-width:88%;text-align:center;box-shadow:var(--shadow)
 }
 #toast.on{opacity:1;transform:translate(-50%,0)}
 
-/* ---------- Arranque ---------- */
+/* ---------- Skeleton de carga ---------- */
 #boot{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:var(--ink);transition:opacity .5s}
 #boot.gone{opacity:0;pointer-events:none}
 #boot .logo{text-align:center}
-#boot .orb{width:58px;height:58px;border-radius:50%;margin:0 auto 14px;
-  background:conic-gradient(from 0deg,var(--violet),var(--teal),var(--violet));
-  animation:spin 1.4s linear infinite}
-#boot .orb::after{content:"";display:block;position:relative;top:8px;left:8px;width:42px;height:42px;border-radius:50%;background:var(--ink)}
+#boot .orb{width:62px;height:62px;border-radius:50%;margin:0 auto 14px;
+  background:conic-gradient(from 0deg,var(--violet),var(--teal),var(--coral),var(--violet));
+  animation:spin 1.5s linear infinite;filter:blur(.4px)}
+#boot .orb::after{content:"";display:block;position:relative;top:9px;left:9px;width:44px;height:44px;border-radius:50%;background:var(--ink)}
 #boot b{font-size:17px;font-weight:800;letter-spacing:-.03em}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
-  @view-transition{navigation:none}
 }
 </style>
 </head>
@@ -749,54 +538,23 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   </header>
 
   <main>
-    <div id="banner" class="hide" aria-live="assertive"></div>
-    <!-- Dos accesos, no dos botones: ocupaban 40px de alto encima de todo y
-         son navegación secundaria, no una acción del tablero. -->
-    <div class="accesos">
-      <button type="button" id="btnResumen">Resumen general</button>
-      <span>·</span>
-      <button type="button" id="btnReporte">Reportes</button>
+    <div style="display:flex;gap:8px;margin:2px 0 10px">
+      <button class="chip" id="btnResumen" style="flex:1;text-align:center;padding:11px 8px">📊 Resumen general</button>
+      <button class="chip" id="btnReporte" style="flex:1;text-align:center;padding:11px 8px">🗂️ Reportes</button>
     </div>
     <button class="chip hide" id="chipPendientes" style="width:100%;text-align:center;padding:11px 8px;margin-bottom:10px;border-color:var(--gold);color:var(--gold)"></button>
 
     <!-- ================= TABLERO ================= -->
     <section class="view on" id="view-tablero">
-
-      <!-- ===== LA PISTA: la espina del tablero =====
-           El dinero de Josué se mueve en ciclos de quincena, no en meses, así
-           que la pantalla se organiza sobre el ciclo y no sobre un calendario.
-           Cada barra es lo que gastó ese día; lunes y viernes van marcados
-           porque son los días que va a la oficina y gasta más. -->
-      <div class="pista" id="pista">
-        <div class="pista-top">
-          <span class="pista-ini" id="pistaIni">—</span>
-          <span class="pista-mid" id="pistaMid">Ciclo</span>
-          <span class="pista-fin" id="pistaFin">—</span>
-        </div>
-        <div class="pista-dias" id="pistaDias"></div>
-        <div class="pista-pie" id="pistaPie"></div>
-      </div>
-
-      <!-- ===== LA CIFRA: la respuesta a "¿puedo gastar?" ===== -->
-      <div class="cifra">
+      <div class="hero">
         <div class="lbl"><span id="heroLbl">Patrimonio total</span><button class="hint" id="patHint" data-hint-title="Lo que ves aquí" data-hint="Cuando tienes una cuenta marcada como bóveda, el número grande es tu dinero disponible: el de las cuentas de uso diario, sin la bóveda. Ese es el que sirve para decidir si puedes gastar algo. El patrimonio total, que sí la incluye, aparece debajo en pequeño y lo revelas con un toque.">?</button></div>
         <div class="big num" id="patrimonio">Q0.00</div>
         <div class="sub"><span id="heroDelta" class="delta up">—</span><span id="heroNote"></span></div>
         <button type="button" id="heroPatrimonio" class="muted hide"
           style="font-size:11.5px;margin-top:7px;text-align:left;display:block"></button>
+        <svg id="spark" viewBox="0 0 300 52" preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
 
-      <!-- ===== PANELES: las trece secciones de antes, una a la vez ===== -->
-      <div class="segs" id="segs" role="tablist">
-        <button class="cdtab on" type="button" data-p="ciclo"   role="tab">Ciclo</button>
-        <button class="cdtab"    type="button" data-p="cuentas" role="tab">Cuentas</button>
-        <button class="cdtab"    type="button" data-p="tarjeta" role="tab">Tarjeta</button>
-        <button class="cdtab"    type="button" data-p="mes"     role="tab">Mes</button>
-        <button class="cdtab"    type="button" data-p="planes"  role="tab">Planes</button>
-        <button class="cdtab"    type="button" data-p="salud"   role="tab">Salud</button>
-      </div>
-
-      <div class="panel on" data-p="ciclo">
       <div class="card hide" id="cicloCard" style="margin-top:12px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span style="font-size:16px">🗓️</span>
@@ -806,7 +564,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
             data-hint="El mes del calendario no sirve si cobras a mitad y a fin de mes: del 1 al 14 vives del sueldo anterior y todo se ve en rojo sin razón. Esto mide de pago a pago. El número grande es lo que te vas a quedar si sigues al ritmo que llevas, contando lo que le abonas a la tarjeta (eso baja deuda, así que también es ahorro) y descontando las obligaciones que aún vencen dentro del ciclo. El gasto por día que aparece es el techo que NO toca tu meta, no una invitación a gastarlo.">?</button>
         </div>
         <div style="height:5px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-bottom:13px">
-          <div id="cicloBarra" style="height:100%;width:0;border-radius:99px;background:var(--violet);transition:width .8s cubic-bezier(.22,.7,.3,1)"></div>
+          <div id="cicloBarra" style="height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--teal));transition:width .8s cubic-bezier(.22,.7,.3,1)"></div>
         </div>
         <div class="muted" id="cicloTitulo" style="font-size:11.5px">Vas a ahorrar</div>
         <b class="num" id="cicloLibre" style="font-size:30px;display:block;letter-spacing:-.03em;line-height:1.15">Q0</b>
@@ -821,6 +579,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           <button class="btn hide" type="button" id="btnCicloApartar" style="margin-top:0;padding:10px;font-size:12.5px">🔒 Apartar</button>
         </div>
       </div>
+
       <div class="card tight hide" id="proyCard" style="display:flex;gap:11px;align-items:flex-start;margin-top:-4px">
         <div style="font-size:19px">🔮</div>
         <div style="flex:1;min-width:0">
@@ -828,28 +587,11 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           <div class="muted" id="proyTxt" style="margin-top:2px;font-size:12px"></div>
         </div>
       </div>
-      <div class="sec-title"><h2>Obligaciones del mes<button class="hint" id="obHint" data-hint-title="Obligaciones fijas" data-hint="Recibos y suscripciones del mes.">?</button></h2><button id="btnNewOb">Agregar</button></div>
-      <div class="card tight" id="obligCard"></div>
-      </div>
 
-      <div class="panel" data-p="cuentas">
-        <!-- Una sola barra apilada: de un vistazo se ve la proporción entre
-             cuentas, que es la pregunta real cuando uno abre "Cuentas". -->
-        <div class="reparto" id="repartoBtn">
-          <div class="reparto-lbl"><span>Reparto</span><span id="repartoTot"></span></div>
-          <div class="reparto-barra" id="repartoBarra"></div>
-          <div class="reparto-leyenda" id="repartoLeyenda"></div>
-        </div>
+
       <div class="sec-title"><h2>Mis cuentas</h2><button id="btnTransfer">Transferir</button></div>
       <div class="banks" id="banksRow"></div>
-      </div>
 
-      <div class="panel" data-p="tarjeta">
-        <div class="sec-title"><h2>Tarjeta de crédito</h2><button id="btnLimite">Límite</button></div>
-        <div id="tcCard"></div>
-      </div>
-
-      <div class="panel" data-p="mes">
       <div class="sec-title"><h2>Este mes</h2></div>
       <div class="metrics" id="mGrid1">
         <div class="metric" data-m="ingresos"><div class="k">↓ Ingresos<i class="qm">?</i></div><div class="v pos num" id="mIng">Q0</div></div>
@@ -862,38 +604,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
         <div class="metric" data-m="pagosTC"><div class="k">✔️ Pagos TC<i class="qm">?</i></div><div class="v num" id="mTar">Q0</div></div>
       </div>
       <div class="muted" style="margin-top:8px;font-size:11px;text-align:center">Toca cualquier tarjeta para ver qué la compone</div>
-        <div class="sec-title"><h2>Flujo del mes</h2></div>
-        <div class="card tight" id="sparkCard">
-        <svg id="spark" viewBox="0 0 300 52" preserveAspectRatio="none" aria-hidden="true"></svg>
-        </div>
-      <div class="sec-title"><h2>Gastos por categoría<button class="hint" data-hint-title="Gastos por categoría" data-hint="Solo tu dinero: lo que salió de tus cuentas. El consumo con tarjeta de crédito no aparece aquí porque ese dinero es del banco, no tuyo; lo ves completo en la sección Tarjeta de crédito.">?</button></h2></div>
-      <div class="card" id="donutCard">
-        <div class="donut-wrap">
-          <div class="donut">
-            <svg width="118" height="118" viewBox="0 0 118 118" id="donutSvg" style="transform:rotate(-90deg)"></svg>
-            <div class="mid"><div><i>Sin tarjeta</i><b class="num" id="donutTotal">Q0</b></div></div>
-          </div>
-          <div class="legend" id="donutLegend"></div>
-        </div>
-      </div>
-      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas en cada uno de los últimos meses.&lt;br&gt;&lt;br&gt;La barra roja incluye los abonos que le hiciste a la tarjeta, porque ese dinero sí sale de tus cuentas. Lo que consumiste con la tarjeta y todavía no has pagado no está aquí: eso se mide aparte, en la deuda.">?</button></h2></div>
-      <div class="card" id="ingVsGasCard">
-        <svg id="ingVsGasSvg" viewBox="0 0 300 120" preserveAspectRatio="none" style="width:100%;height:120px;display:block" aria-hidden="true"></svg>
-        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-2)">
-          <span><i class="swatch-dot" style="background:var(--teal)"></i>Ingresos</span>
-          <span><i class="swatch-dot" style="background:var(--coral)"></i>Salidas</span>
-        </div>
-      </div>
-      </div>
 
-      <div class="panel" data-p="planes">
-      <div class="sec-title"><h2>Planes de ahorro<button class="hint" id="metaHint" data-hint-title="Planes de ahorro" data-hint="Dinero que apartas para una meta.">?</button></h2><button id="btnNewMeta2">Nuevo plan</button></div>
-      <div id="metasDash"></div>
-      <div class="sec-title"><h2>Repetir gasto</h2></div>
-      <div class="chips" id="quickChips"></div>
-      </div>
-
-      <div class="panel" data-p="salud">
       <div class="card" style="margin-top:14px">
         <div class="health">
           <div class="ring">
@@ -912,12 +623,44 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
           </div>
         </div>
       </div>
+
       <div class="sec-title"><h2>Tendencia de patrimonio<button class="hint" id="histPatHint" data-hint-title="Tendencia de patrimonio" data-hint="El patrimonio de cada mes recalculado con el historial real de movimientos hasta el último día de ese mes (el mes en curso se corta en el día de hoy).">?</button></h2></div>
       <div class="card" id="histPatCard">
         <svg id="histPatSvg" viewBox="0 0 300 90" preserveAspectRatio="none" style="width:100%;height:90px;display:block" aria-hidden="true"></svg>
         <div id="histPatLegend" style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text-2)"></div>
       </div>
+
+      <div class="sec-title"><h2>Ingresos vs. gastos<button class="hint" id="ingVsGasHint" data-hint-title="Ingresos vs. gastos" data-hint="Compara lo que entró contra lo que salió de tus cuentas en cada uno de los últimos meses.&lt;br&gt;&lt;br&gt;La barra roja incluye los abonos que le hiciste a la tarjeta, porque ese dinero sí sale de tus cuentas. Lo que consumiste con la tarjeta y todavía no has pagado no está aquí: eso se mide aparte, en la deuda.">?</button></h2></div>
+      <div class="card" id="ingVsGasCard">
+        <svg id="ingVsGasSvg" viewBox="0 0 300 120" preserveAspectRatio="none" style="width:100%;height:120px;display:block" aria-hidden="true"></svg>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-2)">
+          <span><i class="swatch-dot" style="background:var(--teal)"></i>Ingresos</span>
+          <span><i class="swatch-dot" style="background:var(--coral)"></i>Salidas</span>
+        </div>
       </div>
+
+      <div class="sec-title"><h2>Gastos por categoría<button class="hint" data-hint-title="Gastos por categoría" data-hint="Solo tu dinero: lo que salió de tus cuentas. El consumo con tarjeta de crédito no aparece aquí porque ese dinero es del banco, no tuyo; lo ves completo en la sección Tarjeta de crédito.">?</button></h2></div>
+      <div class="card" id="donutCard">
+        <div class="donut-wrap">
+          <div class="donut">
+            <svg width="118" height="118" viewBox="0 0 118 118" id="donutSvg" style="transform:rotate(-90deg)"></svg>
+            <div class="mid"><div><i>Sin tarjeta</i><b class="num" id="donutTotal">Q0</b></div></div>
+          </div>
+          <div class="legend" id="donutLegend"></div>
+        </div>
+      </div>
+
+      <div class="sec-title"><h2>Repetir gasto</h2></div>
+      <div class="chips" id="quickChips"></div>
+
+      <div class="sec-title"><h2>Planes de ahorro<button class="hint" id="metaHint" data-hint-title="Planes de ahorro" data-hint="Dinero que apartas para una meta.">?</button></h2><button id="btnNewMeta2">Nuevo plan</button></div>
+      <div id="metasDash"></div>
+
+      <div class="sec-title"><h2>Obligaciones del mes<button class="hint" id="obHint" data-hint-title="Obligaciones fijas" data-hint="Recibos y suscripciones del mes.">?</button></h2><button id="btnNewOb">Agregar</button></div>
+      <div class="card tight" id="obligCard"></div>
+
+      <div class="sec-title"><h2>Tarjeta de crédito</h2><button id="btnLimite">Límite</button></div>
+      <div id="tcCard"></div>
     </section>
 
     <!-- ================= REGISTROS ================= -->
@@ -980,6 +723,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
   </nav>
 </div>
 
+<div id="banner" class="hide" aria-live="assertive"></div>
 <div id="toast"></div>
 <div class="scrim" id="scrim"></div>
 
@@ -1119,7 +863,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
 <div class="sheet" id="sheetCapture">
   <div class="grab"></div>
   <h3>Pegar notificación de pago</h3>
-  <p class="sub">Copia el texto de la notificación de tu banco o billetera y pégalo aquí. Caudal extrae monto, comercio, fecha y tarjeta.</p>
+  <p class="sub">Copia el texto de la notificación de tu banco o billetera y pégalo aquí. Nébula extrae monto, comercio, fecha y tarjeta.</p>
   <textarea class="note" id="capText" style="min-height:120px" placeholder="Ej. Promerica: Compra por Q245.90 en SUPER LA TORRE con tarjeta *4417 el 14/09/2026"></textarea>
   <div class="btn-row" style="margin-top:12px">
     <button class="btn ghost" type="button" id="capPaste">Pegar del portapapeles</button>
@@ -1505,7 +1249,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
 <div id="lockScreen" class="hide" style="position:fixed;inset:0;z-index:200;background:var(--ink);display:grid;place-items:center;padding:24px">
   <div style="width:100%;max-width:340px;text-align:center">
     <div style="font-size:38px;margin-bottom:10px">🔒</div>
-    <h3 style="margin:0 0 4px">Caudal bloqueado</h3>
+    <h3 style="margin:0 0 4px">Nébula bloqueada</h3>
     <p class="muted" style="margin-bottom:18px">Escribe tu PIN para entrar</p>
     <form id="lockForm">
       <input class="inp num" id="lockPin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="6"
@@ -1519,7 +1263,7 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
 <!-- Bienvenida -->
 <div class="sheet" id="sheetWelcome">
   <div class="grab"></div>
-  <h3>Bienvenido a Caudal</h3>
+  <h3>Bienvenido a Nébula</h3>
   <p class="sub">Empiezas con la app completamente vacía. Puedes crear un catálogo de categorías base (sin montos) para no arrancar desde cero.</p>
   <button class="btn" type="button" id="wcCats">Crear categorías base</button>
   <button class="btn ghost" type="button" id="wcBank" style="margin-top:9px">Crear mi primera cuenta</button>
@@ -1528,9 +1272,8 @@ svg .hit:active{fill:rgba(255,255,255,.06)}
 
 <script>
 /* ==========================================================
-   CAUDAL — motor de la aplicación
-   Una sola puerta de mutación (revisarMovimiento) y una sola
-   fuente de verdad por tipo de movimiento. Sin datos de ejemplo.
+   NÉBULA FINANZAS — motor de la aplicación
+   Sin reportería CSV · sin Copiloto IA · sin datos de ejemplo
    ========================================================== */
 (function(){
 "use strict";
@@ -1545,9 +1288,7 @@ const SIMBOLO='Q ';   // espacio fino que no parte la cifra en dos líneas
 const fmtNum = (dec)=>{
   const f=new Intl.NumberFormat('es-GT',
     dec ? {minimumFractionDigits:2, maximumFractionDigits:2} : {maximumFractionDigits:0});
-  /* Signo menos de verdad (U+2212), no el guion: a 46px el guion se lee como
-     un resto tipográfico y además queda a distinta altura que las cifras. */
-  return n=>{ const v=num(n); return (v<0?'\u2212':'')+SIMBOLO+f.format(Math.abs(v)); };
+  return n=>{ const v=num(n); return (v<0?'-':'')+SIMBOLO+f.format(Math.abs(v)); };
 };
 const CUR  = {format: fmtNum(true)};
 const CUR0 = {format: fmtNum(false)};
@@ -2206,8 +1947,8 @@ function renderBancos(){
   const cards=DB.bancos.map(b=>{
     const v=Engine.bancoValor(b), cr=b.tipo==='credito';
     const bov=Engine.esBoveda(b), tapado=bov && !bovedaVisible;
-    return `<div class="bank${Engine.esBoveda(b)?' sellada':''}" data-b="${b.id}">
-      <div class="glow" style="background:${b.color}"></div>
+    return `<div class="bank" data-b="${b.id}">
+      <div class="glow" style="background:linear-gradient(145deg,${b.color},${b.color}44)"></div>
       <div class="in" style="color:#fff">
         <div class="ico">${bov?'🔒':(b.icono||'🏦')}</div>
         <div class="nm">${esc(b.nombre)}</div>
@@ -2336,7 +2077,7 @@ async function eliminarBanco(id){
   const valor=Engine.bancoValor(b);
   let msg='Sus movimientos se conservan en el libro mayor, pero quedan sin cuenta asignada.';
   if(b.tipo==='credito' && valor>0.01){
-    msg='Esta tarjeta tiene una deuda de '+Engine.format(valor)+' sin pagar. Si la eliminas, Caudal deja de hacerle seguimiento a esa deuda (no se cobra ni se borra el dinero de ningún lado, solo se pierde el rastro). '+msg;
+    msg='Esta tarjeta tiene una deuda de '+Engine.format(valor)+' sin pagar. Si la eliminas, Nébula deja de hacerle seguimiento a esa deuda (no se cobra ni se borra el dinero de ningún lado, solo se pierde el rastro). '+msg;
   }else if(b.tipo!=='credito' && Math.abs(valor)>0.01){
     msg='Esta cuenta tiene '+Engine.format(valor)+' registrados. '+msg;
   }
@@ -2520,11 +2261,10 @@ function renderDashboard(){
     'Te quedan '+Engine.format(obPend)+' por pagar en '+nombreMes(mesSel)+'. Este monto se descuenta automáticamente de tu gasto diario recomendado y del presupuesto base cero.');
   setHint('metaHint','Planes de ahorro',
     'Dinero que apartas de una cuenta hacia una meta. Al abonar sale de la cuenta que elijas; al retirar regresa a la cuenta que indiques.<br><br>'+
-    'Tienes '+DB.metas.length+' plan(es) con '+Engine.format(Engine.enPlanes())+' acumulado. Si eliminas un plan, Caudal te pregunta a qué cuenta devolver el dinero.');
+    'Tienes '+DB.metas.length+' plan(es) con '+Engine.format(Engine.enPlanes())+' acumulado. Si eliminas un plan, Nébula te pregunta a qué cuenta devolver el dinero.');
 
   renderSpark(); updateChart(); renderQuickChips(); renderObligacionesEstado(mesSel); renderTCCard();
   renderPatrimonioHist(); renderIngresosGastos(); renderProyeccionMes(); renderCiclo();
-  renderPista(); renderDondeEsta();
 }
 /* ---------- Patrimonio recalculado a una fecha pasada (para la tendencia histórica) ----------
    Usa el MISMO motor que el número grande del tablero, mirando solo los
@@ -2960,71 +2700,19 @@ function renderCiclo(){
 
   $('btnCicloApartar').classList.toggle('hide', !Engine.hayBoveda() || r.libre<=0);
 
-  /* A dónde se fue el sueldo, como cascada en vez de como párrafo.
-     Antes esto era una frase larga con puntos medios: "Entró Q4,497.80 ·
-     gastaste Q3,707.26 · Q200.54 en fijos · Q1,482.78 a la tarjeta · …".
-     Era lo más importante de la app contado como un diario. Ahora cada
-     salida es un renglón con su barra proporcional al ingreso, y lo que
-     queda cierra abajo. De un vistazo se ve a dónde se fue la quincena. */
-  /* Esta cascada TIENE que cuadrar: si las filas no suman a lo que queda, el
-     número de abajo parece inventado y deja de creerse toda la pantalla.
-     Por eso la primera fila es el residuo —lo que ya había en las cuentas
-     cuando empezó el ciclo— calculado restando, no estimado: así la suma
-     cierra siempre, incluso en los casos raros (un ingreso que cayó directo a
-     la bóveda, un ajuste de saldo). */
-  const reng = [];
-  const fila = (clase, etq, monto, signo, color, detalle) => reng.push({
-    clase, etq, monto, signo, color, detalle
-  });
-
-  const movido  = r.entro + r.retirado - r.corriente - r.fijo - r.aTarjeta - r.aBoveda;
-  const traia   = r.disponible - movido;   // lo que venía de antes del ciclo
-
-  if(Math.abs(traia)>0.5)
-    fila(traia>0?'entra':'sale', traia>0?'Venías con':'Venías debiendo', Math.abs(traia),
-         traia>0?'+':'−', traia>0?'var(--teal)':'var(--coral)', 'de antes de este ciclo');
-  if(r.base==='ciclo') fila('entra','Entró', r.entro, '+', 'var(--teal)');
-  if(r.retirado>0.5)   fila('entra','Sacaste de tus planes', r.retirado, '+', 'var(--teal)');
-  if(r.corriente>0.5)  fila('sale','Gasto del día a día', r.corriente, '−', 'var(--coral)');
-  if(r.fijo>0.5)       fila('fijo','Gastos fijos', r.fijo, '−', 'var(--gold)',
-                            (r.fijos.activas&&r.fijos.activas.length?r.fijos.activas:r.fijos.nombres).join(', '));
-  if(r.aTarjeta>0.5)   fila('guarda','Abonado a la tarjeta', r.aTarjeta, '−', 'var(--violet)', 'baja tu deuda');
-  /* La bóveda va en los dos sentidos. Con la condición `>0.5` a secas, sacar
-     dinero de la bóveda no pintaba fila y el monto aparecía de la nada. */
-  if(r.aBoveda>0.5)    fila('guarda','Guardado en la bóveda', r.aBoveda, '−', 'var(--violet)', 'sigue siendo tuyo');
-  else if(r.aBoveda<-0.5) fila('entra','Sacaste de la bóveda', -r.aBoveda, '+', 'var(--teal)', 'vuelve a lo gastable');
-  if(r.comprometido>0) fila('fijo','Ya tiene dueño', r.comprometido, '−', 'var(--gold)',
-                            r.porPagar.map(p=>p.nombre+(p.atrasada?' (vencida)':'')).join(', '));
-
-  /* Las barras se miden contra la fila más grande, no contra el ingreso: si el
-     residuo o un abono superan al sueldo, con el ingreso como base la barra se
-     salía del 100% y todas las demás quedaban aplastadas. */
-  const base = Math.max(1, ...reng.map(f=>f.monto));
-
-  let html='';
-  if(r.base!=='ciclo'){
-    html+='<p class="muted" style="margin:0 0 10px">Aún no registras el ingreso de este ciclo, '
-        + 'así que esto mide el saldo de tus cuentas.</p>';
-  }
-  html+='<div class="flow">';
-  for(const f of reng){
-    const ancho=Math.max(2,Math.min(100,Math.round(f.monto/base*100)));
-    html+=`<div class="flow-row ${f.clase}">
-      <div class="fl"><i></i><span>${esc(f.etq)}${f.detalle?' <em style="font-style:normal;color:var(--text-3)">· '+esc(f.detalle)+'</em>':''}</span></div>
-      <div class="fv num" style="color:${f.color}">${f.signo}${Engine.format(f.monto)}</div>
-      <div class="flow-bar" style="grid-column:1/-1"><i style="width:${ancho}%;background:${f.color}"></i></div>
-    </div>`;
-  }
-  /* Si falta dinero para lo que ya tiene dueño hay que decirlo. Enseñar Q0.00
-     en vez del negativo es justo lo que hace que un faltante pase inadvertido. */
-  const corto = r.libre < -0.005;
-  html+=`<div class="flow-row queda">
-      <div class="fl"><i style="background:${corto?'var(--coral)':'var(--text)'}"></i><span>${
-        corto?'Te falta para lo comprometido':'Te queda en efectivo'}</span></div>
-      <div class="fv num"${corto?' style="color:var(--coral)"':''}>${
-        corto?'−'+Engine.format(-r.libre):Engine.format(r.libre)}</div>
-    </div></div>`;
-  $('cicloDetalle').innerHTML=html;
+  const piezas = r.base==='ciclo'
+    ? ['Entró <b>'+Engine.format(r.entro)+'</b>', 'gastaste <b>'+Engine.format(r.corriente)+'</b>']
+    : ['Aún no registras el ingreso de este ciclo, así que esto mide el saldo de tus cuentas'];
+  if(r.fijo>0.5) piezas.push('<b>'+Engine.format(r.fijo)+'</b> en fijos ('+
+    ((r.fijos.activas&&r.fijos.activas.length?r.fijos.activas:r.fijos.nombres).join(', '))+')');
+  if(r.aTarjeta>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(r.aTarjeta)+'</b> a la tarjeta (eso también es ahorro)');
+  if(r.aBoveda>0.5) piezas.push('<b style="color:var(--teal)">'+Engine.format(r.aBoveda)+'</b> guardado en la bóveda');
+  if(r.comprometido>0) piezas.push('<b style="color:var(--gold)">'+Engine.format(r.comprometido)+'</b> ya tiene dueño ('
+      +r.porPagar.map(p=>esc(p.nombre)+(p.atrasada?' ⚠️':'')).join(', ')+')');
+  if(r.vencido>0.5) piezas.push('<b style="color:var(--coral)">'+Engine.format(r.vencido)+'</b> de eso ya venció');
+  if(r.retirado>0.5) piezas.push('<b>'+Engine.format(r.retirado)+'</b> que sacaste de tus planes');
+  if(r.libre>0) piezas.push('te quedan <b>'+Engine.format(r.libre)+'</b> en efectivo');
+  $('cicloDetalle').innerHTML=piezas.join(' · ')+'.';
 }
 function diaMes(iso){
   try{
@@ -3099,131 +2787,6 @@ function renderProyeccionMes(){
     (proyectadoNeto>=0?'a favor de ':'en contra de ')+
     '<b style="color:'+(proyectadoNeto>=0?'var(--teal)':'var(--coral)')+'">'+Engine.format(Math.abs(proyectadoNeto))+'</b>.';
 }
-/* ---------- La pista del ciclo ----------
-   La espina del tablero. Cada barra es lo que salió de las cuentas ese día
-   (el consumo con tarjeta no, porque ese día no sale dinero). Los días de
-   oficina van marcados porque son los caros, y los días en que vence algo
-   llevan una marca dorada por encima. Se puede tocar un día para ver qué
-   pasó: eso es lo que convierte la gráfica en algo que se usa, no que se
-   mira. */
-let pistaSel = null;
-function renderPista(){
-  const cont=$('pistaDias'); if(!cont) return;
-  const c=(mesSel===mesActualSistema()) ? cicloActual() : null;
-  const caja=$('pista');
-  if(!c){ if(caja) caja.classList.add('hide'); return; }
-  if(caja) caja.classList.remove('hide');
-  const h=hoy();
-
-  /* Qué vence dentro del ciclo, por día */
-  const vence={};
-  DB.obligaciones.forEach(ob=>{
-    const cand = ob.repite===false ? [ob.fecha||'']
-               : [fechaVencimiento(ob,mesDe(c.ini)), fechaVencimiento(ob,mesDe(c.fin))];
-    cand.filter(Boolean).forEach(f=>{
-      if(f<c.ini||f>c.fin) return;
-      const est=estadoObligacion(ob, mesDe(f));
-      if(est.estado==='pagada') return;
-      (vence[f]=vence[f]||[]).push(ob.nombre);
-    });
-  });
-
-  const dias=[];
-  for(let f=c.ini; f<=c.fin; f=fechaMas(f,1)){
-    let gasto=0, movs=0;
-    for(const t of DB.transacciones){
-      if(t.fecha!==f) continue;
-      movs++;
-      if(t.tipo==='gasto' && !Engine.esGastoTC(t)) gasto+=num(t.monto);
-    }
-    dias.push({f, gasto, movs, futuro:f>h, hoy:f===h,
-               oficina:esDiaOficina(f), vence:vence[f]||null});
-    if(dias.length>62) break;                 // cinturón: nunca un bucle infinito
-  }
-  const tope=Math.max(1,...dias.map(d=>d.gasto));
-
-  $('pistaIni').textContent=fechaCorta(c.ini);
-  $('pistaFin').textContent=fechaCorta(c.fin);
-  $('pistaMid').textContent = c.diasRestantes>0
-    ? (c.diasRestantes===1?'falta 1 día':'faltan '+c.diasRestantes+' días')
-    : 'último día';
-
-  cont.innerHTML=dias.map(d=>{
-    const alto=d.gasto>0 ? Math.max(8, Math.round(d.gasto/tope*100)) : 2;
-    const cl=['pista-d'];
-    if(d.futuro) cl.push('futuro');
-    if(d.hoy) cl.push('hoy');
-    if(d.oficina) cl.push('oficina');
-    if(d.vence) cl.push('vence');
-    if(pistaSel===d.f) cl.push('sel');
-    return `<button type="button" class="${cl.join(' ')}" data-dia="${d.f}"
-      aria-label="${esc(fechaLarga(d.f))}">
-      <span class="barra" style="height:${alto}%"></span>
-      <span class="n">${Number(d.f.slice(8))}</span>
-    </button>`;
-  }).join('');
-
-  pintarPiePista(dias);
-}
-function pintarPiePista(dias){
-  const pie=$('pistaPie'); if(!pie) return;
-  const d = dias.find(x=>x.f===pistaSel) || dias.find(x=>x.hoy) || dias[dias.length-1];
-  if(!d){ pie.textContent=''; return; }
-  const partes=[`<b>${esc(fechaLarga(d.f))}</b>`];
-  if(d.futuro){
-    partes.push('<em>aún no pasa</em>');
-  } else {
-    partes.push(d.gasto>0 ? 'gastaste <span class="num">'+Engine.format(d.gasto)+'</span>'
-                          : '<em>no gastaste nada</em>');
-    if(d.movs) partes.push('<em>'+d.movs+(d.movs===1?' movimiento':' movimientos')+'</em>');
-  }
-  if(d.oficina) partes.push('<em>día de oficina</em>');
-  if(d.vence) partes.push('<span style="color:var(--gold)">vence '+esc(d.vence.join(', '))+'</span>');
-  pie.innerHTML=partes.join(' · ');
-}
-function fechaCorta(f){
-  const d=new Date(f+'T12:00:00');
-  return isNaN(d)?f:d.toLocaleDateString('es-GT',{day:'numeric',month:'short'});
-}
-
-/* ---------- Dónde está el dinero ----------
-   Una sola barra apilada en vez de tarjetas: de un vistazo se ve la
-   proporción entre cuentas, que es la pregunta real. La bóveda sale rayada
-   y sin monto, porque el punto de la bóveda es no ver cuánto hay. */
-function renderDondeEsta(){
-  const barra=$('repartoBarra'); if(!barra) return;
-  const cuentas=DB.bancos.filter(b=>b.tipo!=='credito')
-    .map(b=>({b, v:Math.max(0,Engine.bancoValor(b)), bov:Engine.esBoveda(b)}));
-  const total=cuentas.reduce((a,x)=>a+x.v,0);
-  $('repartoTot').textContent = Engine.hayBoveda()
-    ? 'a la mano: '+Engine.format(Engine.disponibleTotal())
-    : Engine.format(total);
-  if(!total){ barra.innerHTML='<i style="flex:1;background:var(--stroke)"></i>';
-              $('repartoLeyenda').innerHTML=''; return; }
-  barra.innerHTML=cuentas.map(x=>
-    `<i class="${x.bov?'sellada':''}" style="flex:${Math.max(x.v/total,0.03)};background:${x.b.color}"></i>`
-  ).join('');
-  $('repartoLeyenda').innerHTML=cuentas.map(x=>
-    `<span><b class="${x.bov?'sellada':''}" style="background:${x.b.color}"></b>${esc(x.b.nombre)} <u>${
-      x.bov&&!bovedaVisible ? '•••' : Engine.format(x.v)}</u></span>`
-  ).join('');
-}
-
-/* ---------- Paneles ----------
-   Las trece secciones de antes siguen todas aquí; lo que cambia es que se ve
-   una a la vez en vez de un scroll sin fin. */
-function abrirPanel(nombre){
-  const segs=[...document.querySelectorAll('#segs .cdtab')];
-  const paneles=[...document.querySelectorAll('#view-tablero .panel')];
-  if(!segs.length) return;
-  if(!segs.some(s=>s.dataset.p===nombre)) nombre=segs[0].dataset.p;
-  segs.forEach(s=>s.classList.toggle('on', s.dataset.p===nombre));
-  paneles.forEach(p=>p.classList.toggle('on', p.dataset.p===nombre));
-  DB.config.panelTablero=nombre;
-  const act=segs.find(s=>s.dataset.p===nombre);
-  if(act&&act.scrollIntoView) act.scrollIntoView({block:'nearest',inline:'nearest'});
-}
-
 function renderSpark(){
   const svg=$('spark'), dias=diasEnMes(mesSel), pts=[];
   let acc=0;
@@ -3248,26 +2811,22 @@ function renderSpark(){
   const line=pts.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
   const pos=pts[pts.length-1]>=0;
   const cl=pos?'#2DD4BF':'#FF6B81';
-  /* Una línea de finanzas, no de videojuego: sin resplandor de neón ni
-     contornos dobles. Un relleno que se desvanece hacia abajo, la línea
-     limpia encima, y un punto en el día de hoy — que es el dato que uno
-     busca cuando mira una gráfica de su propio dinero. */
-  const hoyIdx = (mesSel===mesActualSistema()) ? Math.min(dias-1, new Date().getDate()-1) : dias-1;
   svg.innerHTML=`
     <defs>
       <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${cl}" stop-opacity=".26"/>
+        <stop offset="0%" stop-color="${cl}" stop-opacity=".42"/>
         <stop offset="100%" stop-color="${cl}" stop-opacity="0"/>
       </linearGradient>
+      <filter id="sglow" x="-30%" y="-60%" width="160%" height="240%">
+        <feGaussianBlur stdDeviation="2.6" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
     </defs>
-    <line x1="0" y1="${Y(0).toFixed(1)}" x2="300" y2="${Y(0).toFixed(1)}"
-          stroke="currentColor" stroke-width="1" opacity=".16" stroke-dasharray="2 4"/>
     <path class="area" d="${line} L300,52 L0,52 Z" fill="url(#sg)"/>
-    <path class="linea" pathLength="1" style="--largo:1;stroke-dasharray:1"
-          d="${line}" fill="none" stroke="${cl}" stroke-width="2"
-          stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${X(hoyIdx).toFixed(1)}" cy="${Y(pts[hoyIdx]).toFixed(1)}" r="3.4"
-            fill="${cl}" stroke="var(--ink)" stroke-width="2"/>`;
+    <path d="${line}" fill="none" stroke="${cl}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity=".55" filter="url(#sglow)"/>
+    <path d="${line}" fill="none" stroke="${cl}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+    <path class="trail" pathLength="1" d="${line}" fill="none" stroke="#FFFFFF" stroke-width="2.6"
+          stroke-linecap="round" stroke-dasharray="0.07 0.93" filter="url(#sglow)" opacity=".95"/>`;
 }
 function updateChart(){
   const gastos=Engine.txMes(mesSel).filter(t=>t.tipo==='gasto'&&!Engine.esGastoTC(t));
@@ -3295,7 +2854,11 @@ function updateChart(){
   const neon=COLORES[0];
   svg.innerHTML=`
     <circle cx="59" cy="59" r="48" fill="none" stroke="var(--surface-2)" stroke-width="15"/>
-    ${seg}`;
+    ${seg}
+    <circle class="tracer" cx="59" cy="59" r="56.3" pathLength="100" fill="none" stroke="#FFFFFF"
+            stroke-width="2.2" stroke-linecap="round" stroke-dasharray="7 93" style="color:#FFFFFF"/>
+    <circle class="tracer inner" cx="59" cy="59" r="39.7" pathLength="100" fill="none" stroke="${neon}"
+            stroke-width="2" stroke-linecap="round" stroke-dasharray="7 93" style="color:${neon}"/>`;
   requestAnimationFrame(()=>{
     svg.querySelectorAll('.anim').forEach((el,i)=>
       setTimeout(()=>el.setAttribute('stroke-dasharray',el.dataset.final),90+i*100));
@@ -3693,11 +3256,12 @@ function graficaTC(){
   datos.forEach((d,i)=>{
     const cx=i*gw+gw/2, hc=(d.con/mx)*H, hp=(d.pag/mx)*H;
     g+=`<rect class="barA" style="animation-delay:${i*65}ms;color:#FF6B81" x="${(cx-bw-2).toFixed(1)}" y="${(H-hc).toFixed(1)}" width="${bw}" height="${Math.max(hc,1.5).toFixed(1)}" rx="3" fill="url(#tcCon)"/>`;
-    if(hc>5) g+=`<rect class="cap" x="${(cx-bw-2).toFixed(1)}" y="${(H-hc-0.6).toFixed(1)}" width="${bw}" height="2.2" rx="1.1" fill="#FFFFFF"/>`;
+    if(hc>5) g+=`<rect class="cap" style="animation-delay:${i*170}ms" x="${(cx-bw-2).toFixed(1)}" y="${(H-hc-0.6).toFixed(1)}" width="${bw}" height="2.2" rx="1.1" fill="#FFFFFF"/>`;
     g+=`<rect class="barB" style="animation-delay:${i*65+110}ms" x="${(cx+2).toFixed(1)}" y="${(H-hp).toFixed(1)}" width="${bw}" height="${Math.max(hp,1.5).toFixed(1)}" rx="3" fill="url(#tcPag)"/>`;
   });
   const lab=datos.map(d=>`<div style="flex:1;text-align:center">${MESES[Number(d.m.slice(5))-1].slice(0,3)}</div>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:92px;margin-top:14px;display:block">${g}</svg>
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:92px;margin-top:14px;display:block">${g}
+      <rect class="sweep" x="0" y="0" width="90" height="${H}" fill="url(#tcSw)"/></svg>
     <div style="display:flex;font-size:10px;color:var(--text-3)">${lab}</div>
     <div style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--text-2)">
       <span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#FF6B81;margin-right:5px"></i>Consumo</span>
@@ -4171,7 +3735,7 @@ function renderMetas(){
        'Te faltan '+Engine.format(falta)+'.'+(meses?' Con tu aporte de '+Engine.format(m.aporte)+' al mes lo logras en unos '+meses+' mes(es), hacia '+proy.texto+'.':' Define un aporte mensual para estimar cuándo lo lograrás.'))+
       (m.redondeo?'<br><br>Cada gasto que registres redondea hacia arriba y la diferencia se abona sola aquí.':'')+
       (num(m.aparteIngresoPct)>0?'<br><br>Cada ingreso que registres aparta automáticamente el '+m.aparteIngresoPct+'% hacia este plan.':'')+
-      '<br><br>Abonar descuenta de la cuenta que elijas. Retirar devuelve el dinero a la cuenta que indiques. Si eliminas el plan, Caudal te pregunta a dónde va lo acumulado.';
+      '<br><br>Abonar descuenta de la cuenta que elijas. Retirar devuelve el dinero a la cuenta que indiques. Si eliminas el plan, Nébula te pregunta a dónde va lo acumulado.';
     const proyTxt = listo ? '🎉 Meta cumplida'
       : proy.meses ? '📅 A este ritmo, la completas '+proy.texto+' (~'+proy.meses+' mes'+(proy.meses===1?'':'es')+')'
       : 'Define un aporte mensual para ver cuándo la completas';
@@ -4291,10 +3855,10 @@ function consejos503020(t,x){
 }
 const ESTRATEGIAS={
   '503020':{n:'Regla 50/30/20',
-    q:'Reparte cada ingreso en tres partes: 50% para lo necesario (vivienda, comida, transporte), 30% para lo que disfrutas y 20% para ahorrar. Caudal lo resume en dos números: un techo de gasto del 80% de tus ingresos y una meta de ahorro del 20%.',
+    q:'Reparte cada ingreso en tres partes: 50% para lo necesario (vivienda, comida, transporte), 30% para lo que disfrutas y 20% para ahorrar. Nébula lo resume en dos números: un techo de gasto del 80% de tus ingresos y una meta de ahorro del 20%.',
     p:'Es la más sencilla. Úsala si quieres una sola regla fácil de recordar y no te interesa clasificar cada gasto.'},
   reparto:{n:'Reparto de sueldo',
-    q:'No es una regla fija: es un plan para el día que te cae el salario. Caudal mira tus cuentas, tus obligaciones pendientes, la deuda de tu tarjeta y tus planes de ahorro, y te propone dos formas concretas de repartir ese dinero entre tus cuentas.',
+    q:'No es una regla fija: es un plan para el día que te cae el salario. Nébula mira tus cuentas, tus obligaciones pendientes, la deuda de tu tarjeta y tus planes de ahorro, y te propone dos formas concretas de repartir ese dinero entre tus cuentas.',
     p:'Úsala el día de pago. Eliges una de las dos opciones y a partir de ahí la app te lleva el seguimiento de cuánto has cumplido de ese reparto.'}
 };
 function renderEstrategia(t,x){
@@ -4439,7 +4003,7 @@ function consejosReparto(t,x){
   if(!DB.bancos.length) return [tip('🏦','Registra tus cuentas para que el reparto tenga destinos reales.')];
   if(base<=0) return [tip('📝','Escribe cuánto vas a repartir o registra tu ingreso del mes.')];
   const r=rolesBancos();
-  out.push(tip('🏦','Caudal asignó roles a tus cuentas: <b>'+esc(r.diario?r.diario.nombre:'—')+'</b> para el gasto diario, <b>'+esc(r.fijos?r.fijos.nombre:'—')+'</b> para lo fijo y <b>'+esc(r.ahorro?r.ahorro.nombre:'—')+'</b> para el ahorro. Cambia el tipo de cada cuenta si quieres otro reparto.'));
+  out.push(tip('🏦','Nébula asignó roles a tus cuentas: <b>'+esc(r.diario?r.diario.nombre:'—')+'</b> para el gasto diario, <b>'+esc(r.fijos?r.fijos.nombre:'—')+'</b> para lo fijo y <b>'+esc(r.ahorro?r.ahorro.nombre:'—')+'</b> para el ahorro. Cambia el tipo de cada cuenta si quieres otro reparto.'));
   if(x.obligPend>base) out.push(tip('🚨','Tus obligaciones pendientes ('+Engine.format(x.obligPend)+') superan lo que vas a repartir. Ninguna opción cuadra: revisa qué puedes posponer.'));
   else out.push(tip('🧾','Aparta primero '+Engine.format(x.obligPend)+' para obligaciones: es lo único que no es negociable este mes.'));
   if(deuda>0){
@@ -4526,39 +4090,18 @@ function renderHistory(){
     c.innerHTML='<div class="empty"><b>Nada por aquí</b>No hay movimientos con estos filtros en '+nombreMes(mesSel)+'.</div>';
     return;
   }
-  /* Agrupado por día, como un libro de cuentas: la fecha encabeza el bloque y
-     deja de repetirse en cada renglón, así la línea de abajo queda libre para
-     categoría y cuenta, que es lo que de verdad se compara al hojear. */
-  const dias=[];
-  arr.forEach(t=>{
-    const k=t.fecha||'';
-    const g=dias.length?dias[dias.length-1]:null;
-    if(g&&g.k===k) g.txs.push(t); else dias.push({k,txs:[t]});
-  });
-  const fila=t=>{
+  c.innerHTML=arr.map(t=>{
     const [ic,col,sg]=ESTILO_TX[t.tipo]||ESTILO_TX.gasto;
     const b=DB.bancos.find(x=>x.id===t.bancoId);
     const bd=DB.bancos.find(x=>x.id===t.bancoDestinoId);
-    const sub=[t.categoria, b?b.nombre:null, t.tipo==='transfer'&&bd?'→ '+bd.nombre:null]
+    const sub=[t.categoria, b?b.nombre:null, t.tipo==='transfer'&&bd?'→ '+bd.nombre:null, t.fecha.slice(8)+'/'+t.fecha.slice(5,7)]
       .filter(Boolean).join(' · ');
     return `<div class="tx" data-tx="${t.id}">
       ${caraTx(t,ic,col)}
       <div class="bd"><b>${esc(t.descripcion||t.categoria||'Movimiento')}</b><span>${esc(sub)}</span></div>
-      <div class="am"><b class="num" style="color:${col}">${sg}${Engine.format(t.monto)}</b></div>
+      <div class="am"><b class="num" style="color:${col}">${sg}${Engine.format(t.monto).replace('Q','Q ')}</b></div>
     </div>`;
-  };
-  c.innerHTML=dias.map(g=>
-    `<div class="txday"><span>${esc(etiquetaDia(g.k))}</span><i class="num">${g.txs.length}</i></div>`
-    + g.txs.map(fila).join('')
-  ).join('');
-}
-/* "hoy" y "ayer" se leen más rápido que la fecha; del resto, día y mes bastan. */
-function etiquetaDia(f){
-  if(!f) return 'Sin fecha';
-  const h=hoy();
-  if(f===h) return 'Hoy';
-  if(f===fechaMenos(h,1)) return 'Ayer';
-  return fechaLarga(f);
+  }).join('');
 }
 /* ---------- Mapa de calor de gasto por día ---------- */
 function renderHeatmap(){
@@ -4683,7 +4226,7 @@ function bloqueComparativo(soloTC){
     const cx=i*gw+gw/2, hB=(sB[i]/mx)*H, hA=(sA[i]/mx)*H;
     barras+=`<rect class="barB" style="animation-delay:${i*60}ms" x="${(cx-bw-2).toFixed(1)}" y="${(H-hB).toFixed(1)}" width="${bw}" height="${Math.max(hB,1.5).toFixed(1)}" rx="3" fill="var(--surface-2)"/>`;
     barras+=`<rect class="barA" style="animation-delay:${i*60+110}ms;color:${color}" x="${(cx+2).toFixed(1)}" y="${(H-hA).toFixed(1)}" width="${bw}" height="${Math.max(hA,1.5).toFixed(1)}" rx="3" fill="url(#${gid})"/>`;
-    if(hA>5) barras+=`<rect class="cap" x="${(cx+2).toFixed(1)}" y="${(H-hA-0.6).toFixed(1)}" width="${bw}" height="2.4" rx="1.2" fill="#FFFFFF"/>`;
+    if(hA>5) barras+=`<rect class="cap" style="animation-delay:${i*170}ms" x="${(cx+2).toFixed(1)}" y="${(H-hA-0.6).toFixed(1)}" width="${bw}" height="2.4" rx="1.2" fill="#FFFFFF"/>`;
     barras+=`<rect class="hit" data-g="${i}" data-tc="${soloTC?1:0}" x="${(i*gw).toFixed(1)}" y="0" width="${gw.toFixed(1)}" height="${H}" fill="transparent" rx="4"/>`;
   }
   const ejes=Array.from({length:grupos},(_,i)=>{
@@ -4727,7 +4270,8 @@ function bloqueComparativo(soloTC){
         <b class="num" style="font-size:16px;color:var(--text-2)">${Engine.format(tB)}</b></div>
     </div>
     <div class="strat-intro" style="margin-top:10px;color:${color};font-weight:600">${veredicto}</div>
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:110px;margin-top:14px;display:block">${barras}</svg>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:110px;margin-top:14px;display:block">${barras}
+      <rect class="sweep" x="0" y="0" width="95" height="${H}" fill="url(#${gid}sw)"/></svg>
     <div style="display:flex;font-size:10px;color:var(--text-3);margin-top:2px">${ejes}</div>
     <div class="muted" style="text-align:center;font-size:10.5px;margin-top:3px">día del mes · toca una columna para ver esos gastos</div>
     <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;color:var(--text-2)">
@@ -5825,7 +5369,6 @@ function renderAll(){
   actualizarSelectorMeses();
   renderBancos();
   renderDashboard();
-  abrirPanel(DB.config.panelTablero||'ciclo');   // deja abierto el panel donde se quedó
   buildFilters(); renderBankFilters(); renderHistory(); renderComparativa(); renderHistorialMeses(); renderHeatmap();
   renderPresupuesto(); renderMetas();
   poblarSelectsBanco(); updateBell();
@@ -5902,19 +5445,6 @@ function wire(){
   };
   $('txFotoQuitar').onclick=()=>{ txFotoData=null; $('txFoto').value=''; mostrarFotoPreview(); };
   $('txList').onclick=e=>{ const r=e.target.closest('[data-tx]'); if(r) editarTx(r.dataset.tx); };
-
-  /* La pista: tocar un día lo selecciona y cuenta qué pasó; volver a tocarlo
-     lo suelta y el pie vuelve a hablar de hoy. */
-  $('pistaDias').onclick=e=>{
-    const d=e.target.closest('[data-dia]'); if(!d) return;
-    pistaSel = (pistaSel===d.dataset.dia) ? null : d.dataset.dia;
-    renderPista(); hap(8);
-  };
-  $('segs').onclick=e=>{
-    const s=e.target.closest('.cdtab'); if(!s) return;
-    abrirPanel(s.dataset.p); saveDB(); hap(8);
-  };
-
 
   // Registro rápido
   $('numpad').onclick=e=>{ const b=e.target.closest('[data-k]'); if(b) qNumTap(b.dataset.k); };
@@ -7012,12 +6542,7 @@ function comprobarCoherencia(){
        lo que te entró" a quien había gastado el 25%, y ninguna identidad
        interna lo notaba porque el error estaba en la fórmula misma. */
     const texto=id=>{ const e=$(id); return e?e.textContent:''; };
-    /* Acepta el signo menos tipográfico (U+2212), que es el que la app imprime,
-       además del guion. Sin esto, un negativo en pantalla se leía como
-       positivo y esta comprobación —que existe justo para cazar fórmulas
-       malas— se quedaba ciega ante ellas. */
-    const cifra=t=>{ const m=String(t).replace(/−/g,'-').replace(/[^0-9.,-]/g,'').replace(/,/g,'');
-                     const v=parseFloat(m); return isFinite(v)?v:null; };
+    const cifra=t=>{ const m=String(t).replace(/[^0-9.,-]/g,'').replace(/,/g,''); const v=parseFloat(m); return isFinite(v)?v:null; };
     const r2=resumenCiclo();
 
     if(r2 && r2.entro>0){
@@ -7216,7 +6741,7 @@ function arrancar(){
     const bt=document.getElementById('boot');
     if(bt) bt.innerHTML='<div class="logo" style="padding:24px;text-align:center">'+
       '<b>No se pudo iniciar</b><div style="font-size:12px;color:#9FA3C9;margin-top:10px">'+String(err&&err.message||err)+'</div></div>';
-    console.error('Caudal:',err);
+    console.error('Nébula:',err);
     return;
   }
   setTimeout(()=>{ const bt=document.getElementById('boot'); if(bt) bt.classList.add('gone'); },3000);
