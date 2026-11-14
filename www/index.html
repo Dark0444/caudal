@@ -205,7 +205,11 @@ main{padding:4px 18px calc(var(--nav-h) + var(--safe-b) + 34px)}
 /* Las tarjetas de cifras se acomodan solas: tres por fila cuando hay sitio y
    dos cuando la pantalla es estrecha o la letra es grande. Con tres columnas
    fijas, "Q 4,506.80" no cabía y la cifra salía cortada. */
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+/* Con 118px cabían tres columnas en un teléfono de 412px y las cifras de
+   cuatro dígitos con signo —"−Q 4,410.24"— se cortaban con puntos suspensivos.
+   Una cifra a medias es peor que una cifra pequeña: con 140px el teléfono
+   pasa a dos columnas y la cifra entra entera. */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 .metric{background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-md);padding:12px 12px 13px}
 .metric .k{font-size:11px;color:var(--text-2);font-weight:600;display:flex;align-items:center;gap:4px}
 /* La cifra se achica sola si no cabe, en vez de desbordar la tarjeta. */
@@ -1432,7 +1436,7 @@ function postAction(tipo,payload){
      saber por qué: sin esto, tocaría Guardar y no pasaría nada. */
   if(r===null && ultimoRechazo){
     const motivo=ultimoRechazo; ultimoRechazo=null;
-    try{ showToast(motivo); }catch(e){ console.warn(motivo); }
+    try{ showToast(motivo, 7000); hap(30); }catch(e){ console.warn(motivo); }
     return null;
   }
   if(r && r.id && !r.auto && (tipo==='addTx'||tipo==='pagarOb')) aplicarAutomatizacionesMeta(r);
@@ -1476,10 +1480,14 @@ const Engine={
      Cada tipo se nombra de forma explícita. No hay un "else" que atrape lo
      desconocido: un movimiento con un tipo que el motor no entiende no mueve
      ningún saldo, en vez de restarlo a ciegas. */
-  bancoValor(b){
+  /* idExcluir deja fuera un movimiento del cálculo. Sirve para preguntar
+     "¿cuánto habría en esta cuenta si este movimiento no existiera?", que es
+     justo lo que hace falta al editar uno. */
+  bancoValor(b, idExcluir){
     const esCred = b.tipo==='credito';
     let v = esCred ? num(b.deudaInicial) : num(b.saldoInicial);
     for(const t of DB.transacciones){
+      if(idExcluir && t.id===idExcluir) continue;
       const m=num(t.monto);
       if(esCred){
         /* En una tarjeta, v es la DEUDA: consumir sube, abonar baja. */
@@ -1676,6 +1684,39 @@ function revisarMovimiento(t, idEditando){
     if(!cuenta(t.bancoId) || !cuenta(t.bancoDestinoId)) return 'Una de las dos cuentas ya no existe';
     if(t.bancoId===t.bancoDestinoId) return 'El origen y el destino son la misma cuenta';
     if(!liquida(t.bancoId)) return 'Una transferencia tiene que salir de una cuenta, no de una tarjeta';
+  }
+
+  /* ---- Una cuenta no puede quedar en negativo ----
+     El banco no deja sacar lo que no hay, así que un saldo bajo cero en la
+     app no es un saldo: es un registro mal hecho —la cuenta equivocada, un
+     ingreso que falta por anotar o un monto que no era ese—. Y mientras
+     tanto todo lo que se calcula encima (lo disponible, el ciclo, la
+     proyección) queda mal sin avisar. Mejor no dejarlo entrar.
+
+     La regla solo frena lo que EMPEORA la cuenta. Si un saldo ya está en
+     negativo, hay que poder editar y corregir esos movimientos: bajarles el
+     monto o cambiarles la cuenta. Por eso se compara contra lo que ese mismo
+     movimiento ya sacaba, no contra cero a secas. */
+  const sacaDe = (t.tipo==='gasto' || t.tipo==='ahorro' || t.tipo==='tarjeta' || t.tipo==='transfer')
+    ? liquida(t.bancoId) : null;          // un gasto con tarjeta no saca efectivo
+  if(sacaDe){
+    let yaSacaba = 0;
+    if(idEditando){
+      const old = DB.transacciones.find(x=>x.id===idEditando);
+      if(old && old.bancoId===t.bancoId &&
+         ['gasto','ahorro','tarjeta','transfer'].indexOf(old.tipo)>=0 &&
+         !(old.tipo==='transfer' && old.bancoDestinoId===t.bancoId))
+        yaSacaba = num(old.monto);
+    }
+    const hay   = Engine.bancoValor(sacaDe, idEditando);   // sin contar este movimiento
+    const queda = hay - monto;
+    if(queda < -0.004 && monto > yaSacaba + 0.004){
+      const falta = Engine.format(monto - Math.max(0,hay));
+      return 'En ' + sacaDe.nombre + ' solo tienes ' + Engine.format(Math.max(0,hay))
+           + ' y esto son ' + Engine.format(monto) + ': te faltan ' + falta + '.'
+           + ' Revisa si salió de otra cuenta, si te falta registrar un ingreso'
+           + ' o si el monto no es ese.';
+    }
   }
   return null;
 }
@@ -1874,9 +1915,11 @@ function resolverConfirm(v){
   if(r) r(v);
 }
 let toastT;
-function showToast(msg){
+function showToast(msg,ms){
   const t=$('toast'); t.textContent=msg; t.classList.add('on');
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2400);
+  /* Un aviso que explica por qué NO se guardó algo hay que poder leerlo y
+     actuar: dura más que un simple "listo". */
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'), ms||2400);
 }
 function animateCount(el,valor,money){
   const from=num(el.dataset.v), to=num(valor), ini=performance.now(), dur=750;
@@ -3390,8 +3433,13 @@ function guardarTransaccion(e){
     if(err){ showToast(err); return; }
   }
   if(!p.descripcion) p.descripcion = tipo==='ingreso'?'Ingreso':tipo==='tarjeta'?'Pago de tarjeta':tipo==='ahorro'?'Abono a plan':(p.categoria||'Gasto');
-  if(id){ p.id=id; postAction('editTx',p); showToast('Movimiento actualizado'); }
-  else{ postAction('addTx',p); showToast('Movimiento guardado'); }
+  /* Solo se anuncia y se cierra si DE VERDAD se guardó. Antes decía
+     "Movimiento guardado" pasara lo que pasara, así que un movimiento
+     rechazado por la guardia se anunciaba como guardado y el aviso real
+     quedaba tapado. En una app de dinero eso es peor que el rechazo. */
+  const r = id ? postAction('editTx', Object.assign(p,{id})) : postAction('addTx', p);
+  if(!r) return;                       // el porqué ya lo dijo postAction
+  showToast(id?'Movimiento actualizado':'Movimiento guardado');
   closeSheet('sheetTx');
 }
 async function eliminarTx(id){
@@ -4560,6 +4608,21 @@ function runAlertEngine(){
     if(b.pct>=100) { addAlert('presupuesto',`Superaste el límite de ${b.cat.nombre}: ${Engine.format(b.gastado)} de ${Engine.format(b.limite)}.`,'bad','cat100:'+b.cat.id+':'+m);
       pushNotify('Límite superado',b.cat.nombre+' va en '+Engine.format(b.gastado),'cat100:'+b.cat.id+':'+m,'💰','presupuesto'); }
     else if(b.pct>=80) addAlert('presupuesto',`${b.cat.nombre} va al ${Math.round(b.pct)}% de su límite mensual.`,'warn','cat80:'+b.cat.id+':'+m);
+  });
+  /* Un saldo bajo cero no existe en el banco, así que siempre es un registro
+     mal hecho. A partir de ahora la guardia impide crear nuevos, pero los que
+     ya estaban hay que verlos: mientras uno siga ahí, lo disponible, el ciclo
+     y la proyección están mal y no se nota. */
+  DB.bancos.filter(b=>b.tipo!=='credito').forEach(b=>{
+    const v=Engine.bancoValor(b);
+    if(v < -0.004){
+      addAlert('cuenta',
+        `${b.nombre} quedó en ${Engine.format(v)}, y una cuenta no puede estar bajo cero. `
+        + `Falta registrar un ingreso, o hay un gasto con la cuenta equivocada o con otro monto.`,
+        'bad','neg:'+b.id+':'+m);
+      pushNotify('Saldo en negativo', b.nombre+' marca '+Engine.format(v)+'. Revisa sus movimientos.',
+        'neg:'+b.id+':'+m, '⚠️','cuenta');
+    }
   });
   DB.bancos.filter(b=>b.tipo==='credito'&&num(b.limite)>0).forEach(b=>{
     const p=Engine.bancoValor(b)/num(b.limite)*100;
